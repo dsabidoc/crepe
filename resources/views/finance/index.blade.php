@@ -14,14 +14,19 @@
         </div>
     </section>
 
-    <form method="GET" class="list-filter-bar" aria-label="Filtros de finanzas">
+    <form method="GET" class="list-filter-bar finance-movements-filter" aria-label="Filtros de finanzas">
         <input type="hidden" name="view" value="movements">
-        <label class="list-search"><span>⌕</span><input name="search" value="{{ $search }}" placeholder="Buscar concepto, referencia o ticket..."></label>
-        <select name="type" aria-label="Tipo de movimiento"><option value="">Todos los movimientos</option>@foreach(['income' => 'Ingresos', 'expense' => 'Gastos', 'transfer' => 'Traspasos', 'adjustment' => 'Ajustes'] as $key => $label)<option value="{{ $key }}" @selected($type === $key)>{{ $label }}</option>@endforeach</select>
-        <select name="account" aria-label="Cuenta"><option value="">Todas las cuentas</option>@foreach($accounts as $account)<option value="{{ $account->id }}" @selected($accountId === $account->id)>{{ $account->name }}</option>@endforeach</select>
-        <input name="from" type="date" value="{{ $from }}" aria-label="Desde"><input name="to" type="date" value="{{ $to }}" aria-label="Hasta">
-        <button class="button button-secondary" type="submit">Filtrar</button>
-        @if($search || $type || $accountId || $from || $to)<a class="filter-clear" href="{{ route('finance.index', ['view' => 'movements']) }}">Limpiar</a>@endif
+        <div class="finance-movements-filter-primary">
+            <label class="list-search"><span>⌕</span><input name="search" value="{{ $search }}" placeholder="Buscar concepto, referencia o ticket..."></label>
+            <input name="from" type="date" value="{{ $from }}" aria-label="Desde">
+            <input name="to" type="date" value="{{ $to }}" aria-label="Hasta">
+            <select name="type" aria-label="Tipo de movimiento"><option value="">Todos los movimientos</option>@foreach(['income' => 'Ingresos', 'expense' => 'Gastos', 'transfer' => 'Traspasos', 'adjustment' => 'Ajustes'] as $key => $label)<option value="{{ $key }}" @selected($type === $key)>{{ $label }}</option>@endforeach</select>
+            <select name="account" aria-label="Cuenta"><option value="">Todas las cuentas</option>@foreach($accounts as $account)<option value="{{ $account->id }}" @selected($accountId === $account->id)>{{ $account->name }}</option>@endforeach</select>
+        </div>
+        <div class="finance-movements-filter-actions">
+            <button class="button button-secondary" type="submit">Filtrar</button>
+            @if($search || $type || $accountId || $from || $to)<a class="filter-clear" href="{{ route('finance.index', ['view' => 'movements']) }}">Limpiar</a>@endif
+        </div>
     </form>
 
     <section class="metric-grid">

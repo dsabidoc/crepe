@@ -1330,6 +1330,14 @@ dialog textarea {
 .app-body .list-filter-bar > label:not(.list-search) { display:grid; gap:8px; flex:1 1 150px; min-width:0; max-width:240px; font-size:13px; white-space:normal; }
 .app-body .list-filter-bar > label:not(.list-search) input { width:100%; }
 .app-body .list-filter-bar .list-search { flex:1 1 240px; min-width:0; max-width:none; width:auto; }
+.app-body .finance-movements-filter { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; align-items:start; }
+.app-body .finance-movements-filter-primary { display:grid; grid-template-columns:minmax(250px,320px) repeat(2,145px) minmax(175px,190px) minmax(175px,190px); gap:12px; align-items:center; min-width:0; }
+.app-body .finance-movements-filter-primary > :is(.list-search,input,select) { width:100%; min-width:0; max-width:none; }
+.app-body .finance-movements-filter-primary .list-search { min-height:44px; height:44px; }
+.app-body .finance-movements-filter-primary > :is(input,select) { height:44px; min-height:44px; }
+.app-body .finance-movements-filter-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.app-body .finance-movements-filter-actions .button,
+.app-body .finance-movements-filter-actions .filter-clear { min-height:40px; }
 .app-body :is(.list-search,.search-box,.mini-search) { min-width:0; min-height:48px; height:48px; border-radius:12px; background:#fff; }
 .app-body .workspace :is(.list-search,.search-box,.mini-search) input { flex:1; width:100%; height:44px; min-height:0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; outline:none; }
 .app-body :is(.list-search,.search-box,.mini-search):focus-within { outline:3px solid #ce8ca1; outline-offset:2px; }
@@ -1378,6 +1386,7 @@ dialog textarea {
     .app-body .app-nav nav { position:static; grid-column:1 / -1; grid-row:2; min-width:0; width:100%; height:auto; overflow-x:auto; gap:8px; padding:0 0 12px; }
     .app-body .app-nav nav a { min-height:40px; flex:0 0 auto; font-size:12px; }
     .app-body .color-layout { grid-template-columns:1fr; }
+    .app-body .finance-movements-filter-primary { grid-template-columns:minmax(220px,1.4fr) repeat(2,minmax(130px,.8fr)) repeat(2,minmax(150px,1fr)); }
 }
 @media (max-width:760px) {
     .app-body .workspace { width:calc(100% - 40px); padding:28px 0 48px; }
@@ -1390,6 +1399,8 @@ dialog textarea {
     .app-body .list-controls { padding:20px!important; }
     .app-body .list-filter-bar > :is(select,.select-picker,label:not(.list-search)) { flex:1 1 140px; max-width:none; }
     .app-body .list-filter-bar .list-search { flex-basis:100%; }
+    .app-body .finance-movements-filter-primary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .app-body .finance-movements-filter-primary .list-search { grid-column:1 / -1; }
     .app-body .dashboard-grid { grid-template-columns:1fr; }
     .app-body .data-table .table-head,.app-body .activity-table-head { display:none; }
     .app-body .data-table .table-row,.app-body .activity-table-row { position:relative; display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr))!important; min-width:0; width:100%; gap:16px; padding:20px; align-items:start; }
@@ -1412,6 +1423,8 @@ dialog textarea {
 @media (max-width:480px) {
     .app-body .metric-grid { grid-template-columns:1fr; }
     .app-body .list-filter-bar > :is(select,.select-picker,label:not(.list-search)) { flex-basis:100%; }
+    .app-body .finance-movements-filter-primary { grid-template-columns:1fr; }
+    .app-body .finance-movements-filter-primary .list-search { grid-column:auto; }
     .app-body dialog > header,.app-body dialog > form > header { padding:20px; }
     .app-body dialog header h2 { font-size:20px; }
     .app-body dialog footer { padding:20px; }
