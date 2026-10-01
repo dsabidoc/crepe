@@ -30,12 +30,13 @@
                 @endif
 
                 @if($invoice->status !== 'paid')
-                    <form method="POST" action="{{ route('payables.payments.store', $invoice) }}" class="payroll-deductions payable-payment-form">@csrf
+                    <form method="POST" action="{{ route('payables.payments.store', $invoice) }}" enctype="multipart/form-data" class="payroll-deductions payable-payment-form">@csrf
                         <label><span>Cuenta de origen</span><select name="finance_account_id" required>@foreach($accounts as $account)<option value="{{ $account->id }}">{{ $account->name }}</option>@endforeach</select></label>
                         <label><span>Abono</span><input name="amount" type="number" min=".01" max="{{ (float) $invoice->amount - (float) $invoice->paid_amount }}" step=".01" required></label>
                         <label><span>Fecha</span><input name="paid_on" type="date" value="{{ now()->toDateString() }}" required></label>
                         <label><span>Referencia <small>Opcional</small></span><input name="reference" maxlength="120" placeholder="Transferencia, folio, etc."></label>
                         <label><span>Notas <small>Opcional</small></span><input name="notes" maxlength="1000" placeholder="Observación del pago"></label>
+                        <label class="full-field"><span>Comprobante <small>Opcional · PDF o imagen</small></span><input name="evidence" type="file" accept="application/pdf,image/jpeg,image/png"></label>
                         <button class="button button-primary" type="submit">Registrar abono</button>
                     </form>
                 @endif

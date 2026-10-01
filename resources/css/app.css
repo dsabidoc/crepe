@@ -1481,6 +1481,7 @@ dialog textarea {
 .app-body .payable-payment-row strong { color:#26344c; font-size:12px; }
 .app-body .payable-payment-row > :last-child { overflow-wrap:anywhere; }
 .app-body .payable-payment-panel .payable-payment-form { padding:0 24px 24px; border-top:0; }
+.app-body .payable-payment-form > .full-field { grid-column:1 / -1; }
 .app-body .payable-payment-panel .payable-payment-form > .button { grid-column:1 / -1; }
 @media (max-width:900px) {
     .app-body .payable-detail-grid { grid-template-columns:1fr; }
