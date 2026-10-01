@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\CommissionEntry;
 use App\Models\Employee;
 use App\Models\FinanceAccount;
+use App\Models\FinanceTransaction;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\Ticket;
@@ -12,6 +13,8 @@ use App\Models\TicketItem;
 use App\Models\User;
 use Database\Seeders\CrepeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PayrollTest extends TestCase
@@ -20,6 +23,7 @@ class PayrollTest extends TestCase
 
     public function test_administrator_can_generate_payroll_and_download_a_signed_receipt(): void
     {
+        Storage::fake('public');
         $this->seed(CrepeSeeder::class);
         $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $employee = Employee::query()->where('email', 'ana@crepe.mx')->firstOrFail();
@@ -36,6 +40,13 @@ class PayrollTest extends TestCase
         $this->assertSame('1360.00', $payrollItem->total);
         $this->assertSame(1, $payrollRun->payroll_number);
         $this->assertDatabaseHas('commission_entries', ['id' => $commission->id, 'payroll_item_id' => $payrollItem->id, 'status' => 'settled']);
+
+        $this->actingAs($administrator)->put(route('payroll.discounts.update', $payrollRun), [
+            'payroll_item_id' => $payrollItem->id,
+            'discount_type' => 'other_deductions',
+            'amount' => 25,
+        ])->assertRedirect();
+        $this->assertSame('1335.00', $payrollItem->fresh()->total);
 
         $this->actingAs($administrator)->put(route('payroll.items.update', [$payrollRun, $payrollItem]), ['infonavit_deduction' => 50, 'other_deductions' => 25, 'tardiness_deduction' => 10])->assertRedirect();
         $this->assertSame('1275.00', $payrollItem->fresh()->total);
@@ -56,11 +67,16 @@ class PayrollTest extends TestCase
             'finance_account_id' => $account->id,
             'amount' => $total,
             'occurred_on' => now()->toDateString(),
+            'evidence' => UploadedFile::fake()->image('nomina.png'),
         ])->assertRedirect();
+        $withdrawal = FinanceTransaction::query()->where('source_id', $payrollRun->id)->where('source_type', PayrollRun::class)->latest('id')->first();
+        $this->assertNotNull($withdrawal?->evidence_path);
+        Storage::disk('public')->assertExists($withdrawal->evidence_path);
         $this->actingAs($administrator)->get(route('payroll.show', $payrollRun))
             ->assertOk()
             ->assertSee('Retiro completo')
-            ->assertSee('$0.00');
+            ->assertSee('$0.00')
+            ->assertSee('Agregar descuento');
         $this->actingAs($administrator)->from(route('payroll.show', $payrollRun))->post(route('payroll.withdrawals.store', $payrollRun), [
             'finance_account_id' => $account->id,
             'amount' => 1,

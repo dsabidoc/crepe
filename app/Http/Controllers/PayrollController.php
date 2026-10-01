@@ -18,6 +18,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -101,8 +102,9 @@ class PayrollController extends Controller
 
     public function withdraw(Request $request, PayrollRun $payrollRun): RedirectResponse
     {
-        $data = $request->validate(['finance_account_id' => ['required', Rule::exists('finance_accounts', 'id')->where('is_active', true)], 'amount' => ['required', 'numeric', 'min:.01'], 'occurred_on' => ['required', 'date'], 'reference' => ['nullable', 'string', 'max:120']]);
-        DB::transaction(function () use ($data, $payrollRun, $request): void {
+        $data = $request->validate(['finance_account_id' => ['required', Rule::exists('finance_accounts', 'id')->where('is_active', true)], 'amount' => ['required', 'numeric', 'min:.01'], 'occurred_on' => ['required', 'date'], 'reference' => ['nullable', 'string', 'max:120'], 'evidence' => ['nullable', File::types(['jpg', 'jpeg', 'png', 'pdf'])->max('10mb')]]);
+        $evidencePath = $request->hasFile('evidence') ? $request->file('evidence')->store('payroll-withdrawals', 'public') : null;
+        DB::transaction(function () use ($data, $payrollRun, $request, $evidencePath): void {
             $run = PayrollRun::query()->lockForUpdate()->findOrFail($payrollRun->id);
             $expected = (float) $run->items()->sum('total');
             $alreadyWithdrawn = (float) FinanceTransaction::query()
@@ -118,10 +120,24 @@ class PayrollController extends Controller
                 ]);
             }
 
-            FinanceTransaction::query()->create(['finance_account_id' => $data['finance_account_id'], 'type' => 'expense', 'direction' => 'out', 'concept' => 'Retiro de nómina '.$run->period_ends_on->format('d/m/Y'), 'amount' => $data['amount'], 'occurred_on' => $data['occurred_on'], 'reference' => $data['reference'] ?? null, 'source_type' => PayrollRun::class, 'source_id' => $run->id, 'created_by' => $request->user()->id]);
+            FinanceTransaction::query()->create(['finance_account_id' => $data['finance_account_id'], 'type' => 'expense', 'direction' => 'out', 'concept' => 'Retiro de nómina '.$run->period_ends_on->format('d/m/Y'), 'amount' => $data['amount'], 'occurred_on' => $data['occurred_on'], 'reference' => $data['reference'] ?? null, 'evidence_path' => $evidencePath, 'source_type' => PayrollRun::class, 'source_id' => $run->id, 'created_by' => $request->user()->id]);
         });
 
         return back()->with('success', 'Retiro de nómina registrado en Finanzas.');
+    }
+
+    public function updateDiscount(Request $request, PayrollRun $payrollRun): RedirectResponse
+    {
+        $data = $request->validate([
+            'payroll_item_id' => ['required', Rule::exists('payroll_items', 'id')->where('payroll_run_id', $payrollRun->id)],
+            'discount_type' => ['required', Rule::in(['infonavit_deduction', 'other_deductions', 'tardiness_deduction'])],
+            'amount' => ['required', 'numeric', 'min:0'],
+        ]);
+        $payrollItem = PayrollItem::query()->where('payroll_run_id', $payrollRun->id)->findOrFail($data['payroll_item_id']);
+        $payrollItem->update([$data['discount_type'] => (float) $data['amount']]);
+        $this->recalculatePayrollItem($payrollItem->fresh());
+
+        return back()->with('success', 'Descuento de '.$payrollItem->employee_name_snapshot.' actualizado.');
     }
 
     public function updateItem(Request $request, PayrollRun $payrollRun, PayrollItem $payrollItem): RedirectResponse
@@ -138,6 +154,15 @@ class PayrollController extends Controller
         $payrollItem->update([...$data, 'total' => $total]);
 
         return back()->with('success', 'Descuentos de '.$payrollItem->employee_name_snapshot.' actualizados.');
+    }
+
+    private function recalculatePayrollItem(PayrollItem $payrollItem): void
+    {
+        $total = (float) $payrollItem->base_pay + (float) $payrollItem->service_commissions + (float) $payrollItem->product_commissions - (float) $payrollItem->infonavit_deduction - (float) $payrollItem->other_deductions - (float) $payrollItem->tardiness_deduction;
+        if ($total < 0) {
+            throw ValidationException::withMessages(['amount' => 'Los descuentos no pueden exceder el total de la nómina.']);
+        }
+        $payrollItem->update(['total' => $total]);
     }
 
     public function downloadReceipt(PayrollRun $payrollRun, PayrollItem $payrollItem, PayrollReceiptPdfService $receipts): Response

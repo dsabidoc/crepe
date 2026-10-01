@@ -95,6 +95,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/nomina', [PayrollController::class, 'store'])->middleware('can:finance.manage')->name('payroll.store');
     Route::get('/nomina/{payrollRun}', [PayrollController::class, 'show'])->middleware('can:finance.view')->name('payroll.show');
     Route::post('/nomina/{payrollRun}/retiros', [PayrollController::class, 'withdraw'])->middleware('can:finance.manage')->name('payroll.withdrawals.store');
+    Route::put('/nomina/{payrollRun}/descuentos', [PayrollController::class, 'updateDiscount'])->middleware('can:finance.manage')->name('payroll.discounts.update');
     Route::put('/nomina/{payrollRun}/personas/{payrollItem}', [PayrollController::class, 'updateItem'])->middleware('can:finance.manage')->name('payroll.items.update');
     Route::get('/nomina/{payrollRun}/personas/{payrollItem}/recibo', [PayrollController::class, 'downloadReceipt'])->middleware('can:finance.view')->name('payroll.items.receipt');
     Route::resource('clientas', CustomerController::class)->middleware('can:customers.view')->parameters(['clientas' => 'customer'])->names('customers');
