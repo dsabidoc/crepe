@@ -40,7 +40,7 @@
             @foreach ($selectedEmployeeIds as $employeeId)
                 <input type="hidden" name="employees[]" value="{{ $employeeId }}">
             @endforeach
-            <input type="date" name="date" value="{{ $date->toDateString() }}" onchange="this.form.submit()">
+            <input type="date" aria-label="Fecha de agenda" name="date" value="{{ $date->toDateString() }}" onchange="this.form.submit()">
         </form>
         <a class="date-shift" aria-label="Periodo siguiente" href="{{ route('agenda.index', array_merge($agendaParameters, ['date' => $nextDate->toDateString()])) }}">→</a>
         <a class="today-link" href="{{ route('agenda.index', $agendaParameters) }}">Hoy</a>
