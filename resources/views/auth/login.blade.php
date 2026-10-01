@@ -7,7 +7,7 @@
             <form method="POST" action="{{ route('login.store') }}" class="auth-form">@csrf
                 <label><span>Correo electrónico</span><input name="email" type="email" value="{{ old('email') }}" placeholder="tu@correo.com" required autofocus autocomplete="email">@error('email')<small class="form-error">{{ $message }}</small>@enderror</label>
                 <label><span>Contraseña</span><input name="password" type="password" placeholder="••••••••" required autocomplete="current-password"></label>
-                <label class="check-row"><input type="checkbox" name="remember" value="1"><span>Recordarme en este equipo</span></label>
+                <label class="check-row"><input type="checkbox" name="remember" value="1"><span>Recordarme en este equipo (opcional)</span></label>
                 <button class="button button-primary button-full" type="submit">Entrar al sistema <span>→</span></button>
             </form><p class="login-help">¿Necesitas acceso? Habla con Administración.</p>
         </div>
