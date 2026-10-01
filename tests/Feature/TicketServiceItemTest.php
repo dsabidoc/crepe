@@ -85,4 +85,28 @@ class TicketServiceItemTest extends TestCase
 
         $this->assertDatabaseHas('ticket_items', ['id' => $item->id, 'line_total' => 500, 'metadata->price_tier' => 'B', 'metadata->price_confirmed' => true]);
     }
+
+    public function test_variable_service_requires_a_final_price_that_is_not_lower_than_its_configured_minimum(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $ticket = Ticket::query()->where('status', 'open')->firstOrFail();
+        $service = SalonService::query()->where('name', 'Tinte')->firstOrFail();
+
+        $this->actingAs($user)->from(route('tickets.show', $ticket))->post(route('tickets.services.store', $ticket), [
+            'salon_service_id' => $service->id,
+            'unit_price' => 1800,
+        ])->assertRedirect(route('tickets.show', $ticket));
+        $item = $ticket->fresh()->items()->where('name_snapshot', 'Tinte')->latest('id')->firstOrFail();
+
+        $this->actingAs($user)->post(route('tickets.services.confirm', [$ticket, $item]), [
+            'unit_price' => 1400,
+        ])->assertSessionHasErrors('unit_price');
+
+        $this->actingAs($user)->post(route('tickets.services.confirm', [$ticket, $item]), [
+            'unit_price' => 2100,
+        ])->assertRedirect(route('tickets.show', $ticket));
+
+        $this->assertDatabaseHas('ticket_items', ['id' => $item->id, 'unit_price' => 2100, 'line_total' => 2100, 'metadata->price_confirmed' => true]);
+    }
 }

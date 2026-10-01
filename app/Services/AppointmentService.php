@@ -17,6 +17,10 @@ class AppointmentService
     /** @return array<int, string> */
     public function availableSlots(string $date, int $duration, array $employeeIds): array
     {
+        if (Carbon::parse($date)->startOfDay()->isBefore(now()->startOfDay())) {
+            return [];
+        }
+
         $employees = Employee::query()->whereIn('id', $employeeIds)->where('is_bookable', true)->where('status', 'active')->get();
         $available = [];
         for ($minutes = 9 * 60; $minutes <= 18 * 60; $minutes += 60) {
@@ -79,10 +83,45 @@ class AppointmentService
         });
     }
 
-    private function ensureAvailability(Employee $employee, Carbon $startsAt, Carbon $endsAt): void
+    public function assignSecondaryEmployee(Appointment $appointment, int $employeeId): Appointment
     {
-        if ($startsAt->isToday() && $startsAt->lessThanOrEqualTo(now())) {
-            throw ValidationException::withMessages(['time' => 'No puedes reservar una hora que ya pasó.']);
+        return DB::transaction(function () use ($appointment, $employeeId): Appointment {
+            $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
+            if ($appointment->primary_employee_id === $employeeId) {
+                throw ValidationException::withMessages([
+                    'secondary_employee_id' => 'Selecciona una estilista distinta de la responsable principal.',
+                ]);
+            }
+            if ($appointment->secondary_employee_id !== null) {
+                throw ValidationException::withMessages([
+                    'secondary_employee_id' => 'Este ticket ya tiene dos estilistas responsables.',
+                ]);
+            }
+
+            $employee = Employee::query()
+                ->where('is_bookable', true)
+                ->where('status', 'active')
+                ->lockForUpdate()
+                ->find($employeeId);
+            if ($employee === null) {
+                throw ValidationException::withMessages([
+                    'secondary_employee_id' => 'La estilista seleccionada no está disponible.',
+                ]);
+            }
+
+            if ($appointment->starts_at->isFuture()) {
+                $this->ensureAvailability($employee, $appointment->starts_at, $appointment->ends_at, $appointment->id);
+            }
+            $appointment->update(['secondary_employee_id' => $employee->id]);
+
+            return $appointment->fresh(['employee', 'secondaryEmployee']);
+        });
+    }
+
+    private function ensureAvailability(Employee $employee, Carbon $startsAt, Carbon $endsAt, ?int $ignoredAppointmentId = null): void
+    {
+        if ($startsAt->lessThanOrEqualTo(now())) {
+            throw ValidationException::withMessages(['time' => 'No puedes reservar una fecha u hora que ya pasó.']);
         }
         $day = $startsAt->dayOfWeek;
         $hours = BusinessHour::query()->where('day_of_week', $day)->first();
@@ -108,6 +147,7 @@ class AppointmentService
         $hasConflict = Appointment::query()->where(function ($query) use ($employee): void {
             $query->where('primary_employee_id', $employee->id)->orWhere('secondary_employee_id', $employee->id);
         })
+            ->when($ignoredAppointmentId, fn ($query) => $query->whereKeyNot($ignoredAppointmentId))
             ->whereNotIn('status', ['cancelled', 'no_show'])->where('starts_at', '<', $endsAt)
             ->where('ends_at', '>', $startsAt)->lockForUpdate()->exists();
         if ($hasConflict) {

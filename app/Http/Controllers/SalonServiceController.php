@@ -109,7 +109,7 @@ class SalonServiceController extends Controller
             'price_costs.*' => ['nullable', 'numeric', 'min:0'],
             'price_sales' => [Rule::requiredIf($request->input('price_type') === 'fixed'), 'array'],
             'price_sales.*' => ['required', 'numeric', 'min:0'],
-            'base_price' => ['nullable', 'numeric', 'min:0'],
+            'base_price' => [Rule::requiredIf($request->input('price_type') === 'variable'), 'nullable', 'numeric', 'min:0'],
             'base_cost' => ['nullable', 'numeric', 'min:0'],
             'price_b_sale_price' => ['nullable', 'numeric', 'min:0'], 'price_b_cost' => ['nullable', 'numeric', 'min:0'],
             'price_c_sale_price' => ['nullable', 'numeric', 'min:0'], 'price_c_cost' => ['nullable', 'numeric', 'min:0'],
@@ -143,8 +143,12 @@ class SalonServiceController extends Controller
         ]);
         $firstPrice = $prices->first();
         $serviceData = Arr::except($data, ['price_names', 'price_costs', 'price_sales', 'cover_image']);
-        $serviceData['base_price'] = $firstPrice['sale_price'] ?? 0;
-        $serviceData['base_cost'] = $firstPrice['cost'] ?? null;
+        $serviceData['base_price'] = $serviceData['price_type'] === 'variable'
+            ? (float) $data['base_price']
+            : $firstPrice['sale_price'] ?? 0;
+        $serviceData['base_cost'] = $serviceData['price_type'] === 'variable'
+            ? $data['base_cost'] ?? null
+            : $firstPrice['cost'] ?? null;
         if ($request?->hasFile('cover_image')) {
             $serviceData['cover_image_path'] = $request->file('cover_image')->store('services', 'public');
         }

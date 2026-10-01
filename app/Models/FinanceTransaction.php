@@ -9,7 +9,7 @@ class FinanceTransaction extends Model
 {
     protected $fillable = [
         'finance_account_id', 'transfer_to_account_id', 'finance_expense_category_id', 'type', 'direction', 'concept', 'amount', 'occurred_on', 'reference', 'notes',
-        'source_type', 'source_id', 'created_by',
+        'cash_session_id', 'evidence_path', 'source_type', 'source_id', 'created_by',
     ];
 
     protected function casts(): array
@@ -20,6 +20,11 @@ class FinanceTransaction extends Model
     public function account(): BelongsTo
     {
         return $this->belongsTo(FinanceAccount::class, 'finance_account_id');
+    }
+
+    public function cashSession(): BelongsTo
+    {
+        return $this->belongsTo(CashSession::class);
     }
 
     public function transferTo(): BelongsTo

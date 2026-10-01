@@ -1,7 +1,17 @@
 <x-layouts.app title="Cortes de caja">
     @php
-        $statusLabels = ['open' => 'Abierta', 'pending_review' => 'Pendiente de revisión', 'verified' => 'Confirmado'];
+        $statusLabels = ['open' => 'Abierta', 'pending_review' => 'Enviado', 'verified' => 'Confirmado'];
         $statusClasses = ['open' => 'confirmada', 'pending_review' => 'programada', 'verified' => 'en-servicio'];
+        $paymentMethodLabels = ['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia', 'gift_card' => 'Gift Card', 'other' => 'Otro'];
+        $formatMinutes = static function (?int $minutes): string {
+            if ($minutes === null) {
+                return '—';
+            }
+
+            return $minutes >= 60
+                ? intdiv($minutes, 60).' h'.($minutes % 60 ? ' '.($minutes % 60).' min' : '')
+                : $minutes.' min';
+        };
     @endphp
 
     <section class="page-title">
@@ -25,7 +35,7 @@
             <header>
                 <div>
                     <p class="eyebrow">ADMINISTRACIÓN</p>
-                    <h2>Cortes pendientes de verificar</h2>
+                    <h2>Cortes enviados para confirmar</h2>
                     <p>Revisa los importes declarados y confirma el corte cuando estén correctos.</p>
                 </div>
                 <span class="cash-pending-count">{{ $pendingCuts->count() }}</span>
@@ -41,7 +51,7 @@
                             <span>Diferencia</span>
                             <strong>{{ (float) $session->difference >= 0 ? '+' : '−' }}${{ number_format(abs((float) $session->difference), 2) }}</strong>
                         </div>
-                        <button class="button button-primary" type="button" data-dialog-open="review-cut-{{ $session->id }}">Revisar corte</button>
+                        <button class="button button-primary" type="button" data-dialog-open="cut-detail-{{ $session->id }}">Revisar corte</button>
                     </article>
                 @endforeach
             </div>
@@ -58,11 +68,13 @@
         @foreach ($registers as $register)
             @php
                 $session = $todaySessions->get($register->id);
-                $totals = $session?->payments->where('status', 'registered')->groupBy('method') ?? collect();
-                $expectedCash = (float) ($totals->get('cash')?->sum('amount') ?? 0);
-                $expectedCard = (float) ($totals->get('card')?->sum('amount') ?? 0);
-                $expectedTransfer = (float) ($totals->get('transfer')?->sum('amount') ?? 0);
-                $expectedOther = (float) ($totals->get('other')?->sum('amount') ?? 0);
+                $expected = $session ? ($expectedBySession[$session->id] ?? []) : [];
+                $expectedCash = (float) ($expected['cash'] ?? 0);
+                $expectedCard = (float) ($expected['card'] ?? 0);
+                $expectedTransfer = (float) ($expected['transfer'] ?? 0);
+                $expectedGiftCard = (float) ($expected['gift_card'] ?? 0);
+                $expectedOther = (float) ($expected['other'] ?? 0);
+                $expectedChange = (float) ($expected['change'] ?? ($session?->opening_float ?? 0));
             @endphp
             <article class="surface cash-register-card">
                 <header>
@@ -70,9 +82,9 @@
                     <span class="pill {{ $statusClasses[$session?->status] ?? 'programada' }}">{{ $session ? strtoupper($statusLabels[$session->status]) : 'SIN ABRIR' }}</span>
                 </header>
                 <dl>
-                    <div><dt>Fondo de cambio</dt><dd>${{ number_format((float) ($session?->opening_float ?? 2500), 2) }}</dd></div>
+                    <div><dt>Fondo y movimientos</dt><dd>${{ number_format($expectedChange, 2) }}</dd></div>
                     <div><dt>Tickets atendidos</dt><dd>{{ $session?->payments->pluck('ticket_id')->unique()->count() ?? 0 }}</dd></div>
-                    <div><dt>Cobros registrados</dt><dd>${{ number_format($expectedCash + $expectedCard + $expectedTransfer + $expectedOther, 2) }}</dd></div>
+                    <div><dt>Cobros registrados</dt><dd>${{ number_format($expectedCash + $expectedCard + $expectedTransfer + $expectedGiftCard + $expectedOther, 2) }}</dd></div>
                 </dl>
                 @if ($session?->status === 'open')
                     <button class="button button-primary" type="button" data-dialog-open="generate-cut-{{ $session->id }}">✓ Verificar corte</button>
@@ -90,14 +102,15 @@
                     <form method="POST" action="{{ route('cash.cuts.store', $session) }}">
                         @csrf
                         <header><div><p class="eyebrow">GENERAR CORTE</p><h2>Verificar corte · {{ $register->name }}</h2><p>{{ $session->business_date?->translatedFormat('l d \d\e F \d\e Y') }}</p></div><button class="dialog-close" type="button" data-dialog-close aria-label="Cerrar">×</button></header>
-                        <div class="cash-cut-total"><span>Tickets atendidos</span><strong>{{ $session->payments->pluck('ticket_id')->unique()->count() }}</strong><small>Los valores esperados se calculan desde pagos registrados y no se pueden editar.</small></div>
+                        <div class="cash-cut-total"><span>Tickets atendidos</span><strong>{{ $session->payments->pluck('ticket_id')->unique()->count() }}</strong><small>Los valores esperados incluyen cobros, ingresos y gastos de esta caja.</small></div>
                         <div class="cash-reconciliation-grid">
                             <label><span>Tarjetas</span><small>Esperado: ${{ number_format($expectedCard, 2) }}</small><input name="actual_card" type="number" min="0" step=".01" value="{{ number_format($expectedCard, 2, '.', '') }}" required></label>
                             <label><span>Transferencias</span><small>Esperado: ${{ number_format($expectedTransfer, 2) }}</small><input name="actual_transfer" type="number" min="0" step=".01" value="{{ number_format($expectedTransfer, 2, '.', '') }}" required></label>
-                            <label><span>Efectivo de tickets</span><small>Esperado: ${{ number_format($expectedCash, 2) }}</small><input name="actual_cash" type="number" min="0" step=".01" value="{{ number_format($expectedCash, 2, '.', '') }}" required></label>
-                            <label><span>Cambio inicial</span><small>Esperado: ${{ number_format((float) $session->opening_float, 2) }}</small><input name="actual_change" type="number" min="0" step=".01" value="{{ number_format((float) $session->opening_float, 2, '.', '') }}" required></label>
+                            <label><span>Gift Cards aplicadas</span><small>Esperado: ${{ number_format($expectedGiftCard, 2) }}</small><input name="actual_gift_card" type="number" min="0" step=".01" value="{{ number_format($expectedGiftCard, 2, '.', '') }}" required></label>
+                            <label><span>Efectivo en caja</span><small>Esperado: ${{ number_format($expectedCash, 2) }}</small><input name="actual_cash" type="number" min="0" step=".01" value="{{ number_format($expectedCash, 2, '.', '') }}" required></label>
+                            <label><span>Fondo y movimientos</span><small>Esperado: ${{ number_format($expectedChange, 2) }}</small><input name="actual_change" type="number" min="0" step=".01" value="{{ number_format($expectedChange, 2, '.', '') }}" required></label>
                             <label><span>Otros métodos</span><small>Esperado: ${{ number_format($expectedOther, 2) }}</small><input name="actual_other" type="number" min="0" step=".01" value="{{ number_format($expectedOther, 2, '.', '') }}" required></label>
-                            <div class="cash-expected-total"><span>Efectivo total esperado</span><strong>${{ number_format($expectedCash + (float) $session->opening_float, 2) }}</strong></div>
+                            <div class="cash-expected-total"><span>Efectivo total esperado</span><strong>${{ number_format($expectedCash + $expectedChange, 2) }}</strong></div>
                         </div>
                         <label class="cash-notes"><span>Comentario del corte</span><textarea name="cashier_notes" rows="3" placeholder="Explica cualquier diferencia, incidencia o entrega."></textarea></label>
                         <footer><button class="button button-secondary" type="button" data-dialog-close>Cancelar</button><button class="button button-primary" type="submit">Guardar corte para revisión</button></footer>
@@ -122,47 +135,61 @@
         <header><div><p class="eyebrow">HISTORIAL</p><h2>Cortes anteriores</h2><p>Incluye todos los tickets y pagos atendidos en cada caja.</p></div></header>
         <div class="cash-session-list">
             @forelse ($sessions as $session)
-                <details class="cash-session-row">
-                    <summary>
-                        <div><strong>{{ $session->register->name }}</strong><small>{{ $session->business_date?->translatedFormat('d \d\e F \d\e Y') ?? $session->opened_at->translatedFormat('d \d\e F \d\e Y') }} · {{ $session->payments->pluck('ticket_id')->unique()->count() }} tickets</small></div>
-                        <div><span>Efectivo esperado</span><strong>${{ number_format((float) ($session->expected_cash ?? 0) + (float) $session->opening_float, 2) }}</strong></div>
-                        <div><span>Diferencia</span><strong class="{{ abs((float) ($session->difference ?? 0)) < .01 ? 'positive' : 'negative' }}">{{ $session->difference === null ? '—' : '$'.number_format((float) $session->difference, 2) }}</strong></div>
-                        <span class="pill {{ $statusClasses[$session->status] ?? 'programada' }}">{{ $statusLabels[$session->status] ?? str($session->status)->headline() }}</span>
-                        <b>⌄</b>
-                    </summary>
-                    <div class="cash-session-detail">
-                        <div class="cash-method-summary"><span>Tarjetas <b>${{ number_format((float) ($session->expected_card ?? 0), 2) }}</b></span><span>Transferencias <b>${{ number_format((float) ($session->expected_transfer ?? 0), 2) }}</b></span><span>Efectivo <b>${{ number_format((float) ($session->expected_cash ?? 0), 2) }}</b></span><span>Cambio <b>${{ number_format((float) $session->opening_float, 2) }}</b></span></div>
-                        @if ($session->cashier_notes)<p class="cash-note"><strong>Comentario de recepción:</strong> {{ $session->cashier_notes }}</p>@endif
-                        @if ($session->verification_notes)<p class="cash-note"><strong>Comentario de administración:</strong> {{ $session->verification_notes }}</p>@endif
-                        <div class="cash-ticket-list">
-                            @forelse ($session->payments->sortBy('created_at') as $payment)
-                                <a href="{{ route('tickets.show', $payment->ticket) }}"><time>{{ $payment->created_at->format('H:i') }}</time><span><strong>{{ $payment->ticket->customer?->full_name ?? 'Venta de mostrador' }}</strong><small>{{ $payment->ticket->code }} · {{ $payment->ticket->ticket_type === 'product_sale' ? 'Venta de producto' : ucfirst($payment->method) }}</small></span><b>${{ number_format((float) $payment->amount, 2) }}</b></a>
+                <button class="cash-session-row" type="button" data-dialog-open="cut-detail-{{ $session->id }}">
+                    <span><strong>{{ $session->register->name }}</strong><small>{{ $session->business_date?->translatedFormat('d \d\e F \d\e Y') ?? $session->opened_at->translatedFormat('d \d\e F \d\e Y') }} · {{ $session->payments->pluck('ticket_id')->unique()->count() }} tickets</small></span>
+                    <span><em>Efectivo esperado</em><strong>${{ number_format((float) ($expectedBySession[$session->id]['cash'] ?? $session->expected_cash ?? 0) + (float) ($expectedBySession[$session->id]['change'] ?? $session->opening_float), 2) }}</strong></span>
+                    <span><em>Diferencia</em><strong class="{{ abs((float) ($session->difference ?? 0)) < .01 ? 'positive' : 'negative' }}">{{ $session->difference === null ? '—' : '$'.number_format((float) $session->difference, 2) }}</strong></span>
+                    <span class="pill {{ $statusClasses[$session->status] ?? 'programada' }}">{{ $statusLabels[$session->status] ?? str($session->status)->headline() }}</span>
+                    <b>Ver detalle →</b>
+                </button>
+
+                <dialog class="cash-cut-dialog cash-cut-detail-dialog" id="cut-detail-{{ $session->id }}">
+                    @php
+                        $ticketGroups = $session->payments
+                            ->where('status', 'registered')
+                            ->sortBy('created_at')
+                            ->groupBy('ticket_id');
+                    @endphp
+                    <header class="cash-cut-detail-header">
+                        <div><p class="eyebrow">DETALLE DEL CORTE</p><h2>{{ $session->register->name }}</h2><p>{{ $session->business_date?->translatedFormat('l d \d\e F \d\e Y') ?? 'Corte histórico' }} · {{ $ticketGroups->count() }} tickets atendidos</p></div>
+                        <div class="cash-cut-detail-actions"><span class="pill {{ $statusClasses[$session->status] ?? 'programada' }}">{{ $statusLabels[$session->status] ?? str($session->status)->headline() }}</span><button class="dialog-close" type="button" data-dialog-close aria-label="Cerrar">×</button></div>
+                    </header>
+                    <div class="cash-cut-detail-content">
+                        <div class="cash-method-summary"><span>Tarjetas <b>${{ number_format((float) ($expectedBySession[$session->id]['card'] ?? $session->expected_card ?? 0), 2) }}</b></span><span>Transferencias <b>${{ number_format((float) ($expectedBySession[$session->id]['transfer'] ?? $session->expected_transfer ?? 0), 2) }}</b></span><span>Gift Cards <b>${{ number_format((float) ($expectedBySession[$session->id]['gift_card'] ?? $session->expected_gift_card ?? 0), 2) }}</b></span><span>Efectivo <b>${{ number_format((float) ($expectedBySession[$session->id]['cash'] ?? $session->expected_cash ?? 0), 2) }}</b></span><span>Fondo y movimientos <b>${{ number_format((float) ($expectedBySession[$session->id]['change'] ?? $session->opening_float), 2) }}</b></span></div>
+                        <div class="cash-review-comparison"><div><span>Tarjetas</span><b>${{ number_format((float) ($expectedBySession[$session->id]['card'] ?? $session->expected_card ?? 0), 2) }}</b><strong>${{ number_format((float) ($session->actual_card ?? 0), 2) }}</strong></div><div><span>Transferencias</span><b>${{ number_format((float) ($expectedBySession[$session->id]['transfer'] ?? $session->expected_transfer ?? 0), 2) }}</b><strong>${{ number_format((float) ($session->actual_transfer ?? 0), 2) }}</strong></div><div><span>Gift Cards</span><b>${{ number_format((float) ($expectedBySession[$session->id]['gift_card'] ?? $session->expected_gift_card ?? 0), 2) }}</b><strong>${{ number_format((float) ($session->actual_gift_card ?? 0), 2) }}</strong></div><div><span>Efectivo</span><b>${{ number_format((float) ($expectedBySession[$session->id]['cash'] ?? $session->expected_cash ?? 0), 2) }}</b><strong>${{ number_format((float) ($session->actual_cash ?? 0), 2) }}</strong></div><div><span>Fondo y movimientos</span><b>${{ number_format((float) ($expectedBySession[$session->id]['change'] ?? $session->opening_float), 2) }}</b><strong>${{ number_format((float) ($session->actual_change ?? $session->opening_float), 2) }}</strong></div></div>
+                        <p class="cash-review-difference {{ $session->difference === null || abs((float) $session->difference) < .01 ? 'matches' : 'does-not-match' }}">{{ $session->difference === null ? 'Aún no se ha enviado este corte.' : (abs((float) $session->difference) < .01 ? '✓ El corte cuadra.' : 'Diferencia declarada: $'.number_format((float) $session->difference, 2)) }}</p>
+
+                        <section class="cash-cut-tickets"><header><div><p class="eyebrow">TICKETS ATENDIDOS</p><h3>Detalle del día</h3></div><span>{{ $ticketGroups->count() }} tickets</span></header><div class="cash-cut-ticket-list">
+                            @forelse($ticketGroups as $payments)
+                                @php
+                                    $ticket = $payments->first()->ticket;
+                                    $appointment = $ticket?->appointment;
+                                    $scheduledMinutes = $appointment ? $appointment->starts_at->diffInMinutes($appointment->ends_at) : null;
+                                    $paidBeforeAppointment = $appointment && $ticket?->paid_at && $ticket->paid_at->lessThan($appointment->starts_at);
+                                    $actualMinutes = $appointment && $ticket?->paid_at && ! $paidBeforeAppointment
+                                        ? $appointment->starts_at->diffInMinutes($ticket->paid_at)
+                                        : null;
+                                    $stylists = collect([$appointment?->employee?->full_name, $appointment?->secondaryEmployee?->full_name])->filter()->values();
+                                @endphp
+                                <article class="cash-cut-ticket"><header><div><a href="{{ route('tickets.show', $ticket) }}">{{ $ticket->code }}</a><strong>{{ $ticket->customer?->full_name ?? 'Venta de mostrador' }}</strong></div><span>{{ $ticket->status === 'paid' ? 'Cobrado' : 'En proceso' }}</span></header><dl><div><dt>Hora</dt><dd>{{ $appointment?->starts_at?->format('H:i') ?? $payments->first()->created_at->format('H:i') }}</dd></div><div><dt>Duración de cita</dt><dd>{{ $formatMinutes($scheduledMinutes) }}</dd></div><div><dt>Tiempo hasta cobro</dt><dd>{{ $paidBeforeAppointment ? 'Pago anticipado' : ($ticket?->paid_at ? $formatMinutes($actualMinutes) : 'Aún no se cobra') }}</dd></div><div class="cash-cut-ticket-stylists"><dt>Estilista(s)</dt><dd>{{ $stylists->isNotEmpty() ? $stylists->join(' · ') : 'Sin estilista asignada' }}</dd></div></dl><div class="cash-cut-ticket-payments"><span>Formas de pago</span><div>@foreach($payments as $payment)<small>{{ $paymentMethodLabels[$payment->method] ?? str($payment->method)->headline() }} <b>${{ number_format((float) $payment->amount, 2) }}</b></small>@endforeach</div></div></article>
                             @empty
                                 <p class="empty-state">No hubo pagos registrados en esta caja.</p>
                             @endforelse
-                        </div>
+                        </div></section>
+                        @if ($session->cashier_notes)<p class="cash-note"><strong>Comentario de recepción:</strong> {{ $session->cashier_notes }}</p>@endif
+                        @if ($session->verification_notes)<p class="cash-note"><strong>Comentario de administración:</strong> {{ $session->verification_notes }}</p>@endif
                     </div>
-                </details>
+                    @if($canAuthorize && $session->status === 'pending_review')
+                        <form method="POST" action="{{ route('cash.cuts.confirm', $session) }}">@csrf<label class="cash-notes"><span>Comentario de administración</span><textarea name="verification_notes" rows="3" placeholder="Anota la validación o cualquier observación."></textarea></label><footer><button class="button button-secondary" type="button" data-dialog-close>Cancelar</button><button class="button button-primary" type="submit">Confirmar corte</button></footer></form>
+                    @else
+                        <footer><button class="button button-secondary" type="button" data-dialog-close>Cerrar detalle</button></footer>
+                    @endif
+                </dialog>
             @empty
                 <p class="empty-state">Aún no existen cortes registrados.</p>
             @endforelse
         </div>
     </section>
-
-    @if ($canAuthorize)
-        @foreach ($pendingCuts as $session)
-            <dialog class="cash-cut-dialog cash-review-dialog" id="review-cut-{{ $session->id }}">
-                <form method="POST" action="{{ route('cash.cuts.confirm', $session) }}">
-                    @csrf
-                    <header><div><p class="eyebrow">REVISIÓN ADMINISTRATIVA</p><h2>{{ $session->register->name }} · {{ $session->business_date?->translatedFormat('d \d\e F') }}</h2><p>{{ $session->payments->pluck('ticket_id')->unique()->count() }} tickets atendidos</p></div><button class="dialog-close" type="button" data-dialog-close aria-label="Cerrar">×</button></header>
-                    <div class="cash-review-comparison"><div><span>Tarjetas</span><b>${{ number_format((float) $session->expected_card, 2) }}</b><strong>${{ number_format((float) $session->actual_card, 2) }}</strong></div><div><span>Transferencias</span><b>${{ number_format((float) $session->expected_transfer, 2) }}</b><strong>${{ number_format((float) $session->actual_transfer, 2) }}</strong></div><div><span>Efectivo</span><b>${{ number_format((float) $session->expected_cash, 2) }}</b><strong>${{ number_format((float) $session->actual_cash, 2) }}</strong></div><div><span>Cambio</span><b>${{ number_format((float) $session->opening_float, 2) }}</b><strong>${{ number_format((float) $session->actual_change, 2) }}</strong></div></div>
-                    <p class="cash-review-difference {{ abs((float) $session->difference) < .01 ? 'matches' : 'does-not-match' }}">{{ abs((float) $session->difference) < .01 ? '✓ El corte cuadra.' : 'Diferencia declarada: $'.number_format((float) $session->difference, 2) }}</p>
-                    <label class="cash-notes"><span>Comentario de administración</span><textarea name="verification_notes" rows="3" placeholder="Anota la validación o cualquier observación."></textarea></label>
-                    <footer><button class="button button-secondary" type="button" data-dialog-close>Cancelar</button><button class="button button-primary" type="submit">Confirmar corte</button></footer>
-                </form>
-            </dialog>
-        @endforeach
-    @endif
 
     <script>
         document.querySelectorAll('[data-dialog-open]').forEach((button) => button.addEventListener('click', () => document.getElementById(button.dataset.dialogOpen)?.showModal()));

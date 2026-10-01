@@ -40,11 +40,64 @@
 
         <div class="form-section">
             <h2>Productos</h2>
-            <p>Después de crear la venta podrás buscar y agregar productos del inventario de Recepción.</p>
-            <div class="schedule-slot-preview">
-                <strong>Venta de producto</strong>
-                <span>El inventario se descuenta al agregar cada producto y el cobro se registra en la caja abierta de Recepción.</span>
-            </div>
+            <p>Selecciona los productos disponibles en Recepción y la cantidad para esta venta. El inventario se descuenta al crearla.</p>
+
+            @error('products')
+                <p class="field-error">{{ $message }}</p>
+            @enderror
+
+            @if($variants->isNotEmpty())
+                <div class="product-card-grid sale-product-grid">
+                    @foreach($variants as $variant)
+                        @php
+                            $stock = (float) $variant->balances->sum('available_quantity');
+                            $selected = (bool) old("products.{$variant->id}.selected");
+                        @endphp
+                        <article class="pos-product-card sale-product-card {{ $selected ? 'selected' : '' }}" data-sale-product-card>
+                            <span class="product-mark">{{ str($variant->product->name)->substr(0, 1)->upper() }}</span>
+                            <span class="product-card-copy">
+                                <strong title="{{ $variant->product->name }}">{{ $variant->product->name }}</strong>
+                                <small>{{ $variant->product->brand ?: 'Producto de Recepción' }}</small>
+                                <em>{{ $variant->name }} · {{ rtrim(rtrim(number_format($stock, 3, '.', ''), '0'), '.') }} disponibles</em>
+                            </span>
+                            <span class="product-card-price">${{ number_format((float) $variant->sale_price, 2) }}</span>
+
+                            <div class="sale-product-controls">
+                                <label class="sale-product-select">
+                                    <input type="hidden" name="products[{{ $variant->id }}][product_variant_id]" value="{{ $variant->id }}">
+                                    <input type="checkbox" name="products[{{ $variant->id }}][selected]" value="1" data-sale-product-toggle @checked($selected)>
+                                    <span>Agregar a la venta</span>
+                                </label>
+                                <label class="sale-product-quantity">
+                                    <span>Cantidad</span>
+                                    <input
+                                        type="number"
+                                        name="products[{{ $variant->id }}][quantity]"
+                                        value="{{ old("products.{$variant->id}.quantity", 1) }}"
+                                        min="1"
+                                        max="{{ max(1, floor($stock)) }}"
+                                        step="1"
+                                        inputmode="numeric"
+                                        data-sale-product-quantity
+                                        @disabled(! $selected)
+                                    >
+                                </label>
+                                <label class="sale-product-employee">
+                                    <span>Crepera que recomendó <small>Opcional</small></span>
+                                    <select name="products[{{ $variant->id }}][employee_id]" @disabled(! $selected) data-sale-product-employee>
+                                        <option value="">Sin comisión de producto</option>
+                                        @foreach($commissionableEmployees as $employee)
+                                            <option value="{{ $employee->id }}" @selected((string) old("products.{$variant->id}.employee_id") === (string) $employee->id)>{{ $employee->full_name }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                            </div>
+                        </article>
+                    @endforeach
+                </div>
+            @else
+                <p class="empty-state">No hay productos con existencias disponibles en Recepción. Solicita inventario a Almacén.</p>
+            @endif
         </div>
 
         <footer class="form-footer">
@@ -94,6 +147,23 @@
             }));
             document.addEventListener('click', (event) => {
                 if (!event.target.closest('.customer-picker')) results.hidden = true;
+            });
+        })();
+
+        (() => {
+            document.querySelectorAll('[data-sale-product-card]').forEach((card) => {
+                const toggle = card.querySelector('[data-sale-product-toggle]');
+                const quantity = card.querySelector('[data-sale-product-quantity]');
+                const employee = card.querySelector('[data-sale-product-employee]');
+
+                const sync = () => {
+                    card.classList.toggle('selected', toggle.checked);
+                    quantity.disabled = !toggle.checked;
+                    employee.disabled = !toggle.checked;
+                };
+
+                toggle.addEventListener('change', sync);
+                sync();
             });
         })();
     </script>

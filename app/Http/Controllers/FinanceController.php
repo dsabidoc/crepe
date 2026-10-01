@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use App\Models\FinanceAccount;
 use App\Models\FinanceExpenseCategory;
 use App\Models\FinanceTransaction;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\File;
 use Illuminate\View\View;
 
 class FinanceController extends Controller
@@ -34,6 +36,7 @@ class FinanceController extends Controller
 
         if ($view === 'accounts') {
             $this->hydrateAccountBalances($accounts);
+            $this->hydrateAccountDailyActivity($accounts);
 
             return view('finance.accounts', ['accounts' => $accounts]);
         }
@@ -83,17 +86,28 @@ class FinanceController extends Controller
                 'prefix' => $isPositive ? '+' : '−',
                 'amount' => (float) $transaction->amount,
             ];
-        })->concat($payments->map(fn (Payment $payment): array => [
-            'date' => $payment->created_at?->format('d/m/Y H:i'),
-            'sort_key' => $payment->created_at?->timestamp ?? 0,
-            'concept' => 'Ticket '.$payment->ticket?->code,
-            'detail' => $payment->ticket?->customer?->full_name ?? 'Venta de mostrador',
-            'account' => $payment->financeAccount?->name ?? 'Sin asignar',
-            'type' => 'Ingreso de ticket',
-            'class' => 'positive',
-            'prefix' => '+',
-            'amount' => (float) $payment->amount,
-        ]))->sortByDesc('sort_key')->values();
+        })->concat($payments->map(function (Payment $payment): array {
+            $isGiftCard = $payment->method === 'gift_card';
+            $methodLabel = [
+                'cash' => 'Efectivo',
+                'card' => 'Tarjeta',
+                'transfer' => 'Transferencia',
+                'gift_card' => 'Gift Card',
+                'other' => 'Otro',
+            ][$payment->method] ?? str($payment->method)->headline();
+
+            return [
+                'date' => $payment->created_at?->format('d/m/Y H:i'),
+                'sort_key' => $payment->created_at?->timestamp ?? 0,
+                'concept' => ($isGiftCard ? 'Aplicación Gift Card' : 'Ticket').' '.$payment->ticket?->code,
+                'detail' => ($payment->ticket?->customer?->full_name ?? 'Venta de mostrador').' · '.$methodLabel,
+                'account' => $payment->financeAccount?->name ?? ($isGiftCard ? 'Gift Card' : 'Sin asignar'),
+                'type' => $isGiftCard ? 'Gift Card aplicada' : 'Ingreso de ticket',
+                'class' => $isGiftCard ? 'neutral' : 'positive',
+                'prefix' => $isGiftCard ? '' : '+',
+                'amount' => (float) $payment->amount,
+            ];
+        }))->sortByDesc('sort_key')->values();
 
         $summaryQuery = FinanceTransaction::query()
             ->when($accountId > 0, fn ($query) => $query->where('finance_account_id', $accountId))
@@ -105,6 +119,7 @@ class FinanceController extends Controller
         $expenses = $includeExpenses ? (clone $summaryQuery)->where('type', 'expense')->sum('amount') : 0;
         $ticketIncome = $includeIncome
             ? Payment::query()->where('status', 'registered')
+                ->where('method', '!=', 'gift_card')
                 ->when($accountId > 0, fn ($query) => $query->where('finance_account_id', $accountId))
                 ->when($from, fn ($query, $from) => $query->whereDate('created_at', '>=', $from))
                 ->when($to, fn ($query, $to) => $query->whereDate('created_at', '<=', $to))->sum('amount')
@@ -143,6 +158,7 @@ class FinanceController extends Controller
             'occurred_on' => ['required', 'date'],
             'reference' => ['nullable', 'string', 'max:120'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'evidence' => ['nullable', File::types(['jpg', 'jpeg', 'png', 'pdf'])->max('10mb')],
         ]);
         if ($data['type'] === 'transfer' && empty($data['transfer_to_account_id'])) {
             return back()->withErrors(['transfer_to_account_id' => 'Selecciona la cuenta destino para el traspaso.'])->withInput();
@@ -154,6 +170,10 @@ class FinanceController extends Controller
             return back()->withErrors(['finance_expense_category_id' => 'Selecciona una categoría de gasto.'])->withInput();
         }
         $data['created_by'] = $request->user()->id;
+        $data['evidence_path'] = $request->hasFile('evidence')
+            ? $request->file('evidence')->store('finance-evidence', 'public')
+            : null;
+        unset($data['evidence']);
         if ($data['type'] === 'transfer') {
             if ((int) $data['finance_account_id'] === (int) $data['transfer_to_account_id']) {
                 return back()->withErrors(['transfer_to_account_id' => 'La cuenta destino debe ser diferente.'])->withInput();
@@ -191,6 +211,71 @@ class FinanceController extends Controller
         return back()->with('success', 'Cuenta agregada.');
     }
 
+    public function showAccount(FinanceAccount $financeAccount): View
+    {
+        abort_unless($financeAccount->is_active, 404);
+        $this->hydrateAccountBalances(collect([$financeAccount]));
+
+        $transactions = $financeAccount->transactions()
+            ->with(['expenseCategory', 'createdBy'])
+            ->latest('occurred_on')
+            ->latest('id')
+            ->get();
+        $payments = $financeAccount->payments()
+            ->with(['ticket.customer', 'cashSession.register'])
+            ->where('status', 'registered')
+            ->latest()
+            ->get();
+        $today = now()->toDateString();
+        $todayIncome = (float) $payments->filter(fn (Payment $payment): bool => $payment->created_at?->isToday() ?? false)->sum('amount')
+            + (float) $transactions->filter(fn (FinanceTransaction $transaction): bool => $transaction->occurred_on?->toDateString() === $today && $transaction->type === 'income')->sum('amount');
+        $todayExpenses = (float) $transactions->filter(fn (FinanceTransaction $transaction): bool => $transaction->occurred_on?->toDateString() === $today && $transaction->type === 'expense')->sum('amount');
+        $movementRows = $transactions->map(function (FinanceTransaction $transaction): array {
+            $positive = $transaction->type === 'income' || ($transaction->type !== 'expense' && $transaction->direction === 'in');
+
+            return [
+                'date' => $transaction->occurred_on?->format('d/m/Y'),
+                'sort_key' => $transaction->occurred_on?->timestamp ?? 0,
+                'concept' => $transaction->concept,
+                'detail' => $transaction->reference,
+                'type' => match ($transaction->type) {
+                    'income' => 'Ingreso',
+                    'expense' => 'Gasto',
+                    'transfer' => 'Traspaso',
+                    'adjustment' => 'Ajuste',
+                    default => $transaction->type,
+                },
+                'positive' => $positive,
+                'amount' => (float) $transaction->amount,
+            ];
+        })->concat($payments->map(function (Payment $payment): array {
+            return [
+                'date' => $payment->created_at?->format('d/m/Y H:i'),
+                'sort_key' => $payment->created_at?->timestamp ?? 0,
+                'concept' => 'Pago de ticket '.$payment->ticket?->code,
+                'detail' => $payment->ticket?->customer?->full_name ?? 'Venta de mostrador',
+                'type' => 'Ingreso de ticket',
+                'positive' => $payment->method !== 'gift_card',
+                'amount' => (float) $payment->amount,
+            ];
+        }))->sortByDesc('sort_key')->values();
+
+        return view('finance.account-detail', compact('financeAccount', 'movementRows', 'todayExpenses', 'todayIncome'));
+    }
+
+    public function destroyAccount(FinanceAccount $financeAccount): RedirectResponse
+    {
+        abort_if(in_array($financeAccount->name, ['C-Bancomer', 'C-Efectivo', 'C-Recepción 1', 'C-Recepción 2'], true), 422, 'Esta cuenta es necesaria para la operación del sistema.');
+
+        if ($financeAccount->transactions()->exists() || $financeAccount->payments()->exists()) {
+            return back()->withErrors(['account' => 'No puedes eliminar una cuenta con movimientos. Conserva su historial y déjala sin usar.']);
+        }
+
+        $financeAccount->delete();
+
+        return back()->with('success', 'Cuenta eliminada.');
+    }
+
     public function storeCategory(Request $request): RedirectResponse
     {
         $data = $request->validate(['name' => ['required', 'string', 'max:120', 'unique:finance_expense_categories,name']]);
@@ -217,8 +302,19 @@ class FinanceController extends Controller
         if ($otherServiceAmount > 0) {
             $serviceMix->push(['name' => 'Otros', 'amount' => $otherServiceAmount, 'percent' => $serviceRevenue > 0 ? round($otherServiceAmount / $serviceRevenue * 100, 1) : 0]);
         }
-        $productSellers = $items->where('type', 'product')->groupBy(fn ($item): string => $item->ticket?->appointment?->employee?->full_name ?? 'Recepción')->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
-        $serviceSellers = $items->where('type', 'service')->groupBy(fn ($item): string => $item->ticket?->appointment?->employee?->full_name ?? 'Sin asignar')->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
+        $employeeIds = $items->map(function (TicketItem $item): ?int {
+            $employeeId = $item->metadata['employee_id'] ?? $item->ticket?->appointment?->primary_employee_id;
+
+            return $employeeId ? (int) $employeeId : null;
+        })->filter()->unique();
+        $employeesById = Employee::query()->whereKey($employeeIds)->get()->keyBy('id');
+        $employeeNameForItem = function (TicketItem $item) use ($employeesById): string {
+            $employeeId = $item->metadata['employee_id'] ?? $item->ticket?->appointment?->primary_employee_id;
+
+            return $employeesById->get($employeeId)?->full_name ?? 'Sin asignar';
+        };
+        $productSellers = $items->where('type', 'product')->groupBy($employeeNameForItem)->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
+        $serviceSellers = $items->where('type', 'service')->groupBy($employeeNameForItem)->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
         $expenseRows = FinanceTransaction::query()->with('expenseCategory')->where('type', 'expense')->whereBetween('occurred_on', [$from, $to])->get();
         $expenses = $expenseRows->groupBy(fn ($transaction): string => $transaction->expenseCategory?->name ?? 'Sin categoría')->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('amount')])->sortByDesc('amount')->values()->take(10);
         $inventoryRequests = InventoryRequest::query()->with(['sourceLocation', 'items.variant.product'])->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])->latest()->limit(10)->get();
@@ -249,6 +345,30 @@ class FinanceController extends Controller
                 ->when($from, fn ($query, $from) => $query->whereDate('created_at', '>=', $from))
                 ->when($to, fn ($query, $to) => $query->whereDate('created_at', '<=', $to))->sum('amount');
             $account->setAttribute('current_balance', (float) $account->initial_balance + (float) $transactionBalance + (float) $paymentBalance);
+        });
+    }
+
+    private function hydrateAccountDailyActivity(Collection $accounts): void
+    {
+        $today = now()->toDateString();
+
+        $accounts->each(function (FinanceAccount $account) use ($today): void {
+            $ticketIncome = (float) $account->payments()
+                ->where('status', 'registered')
+                ->where('method', '!=', 'gift_card')
+                ->whereDate('created_at', $today)
+                ->sum('amount');
+            $manualIncome = (float) $account->transactions()
+                ->where('type', 'income')
+                ->whereDate('occurred_on', $today)
+                ->sum('amount');
+            $expenses = (float) $account->transactions()
+                ->where('type', 'expense')
+                ->whereDate('occurred_on', $today)
+                ->sum('amount');
+
+            $account->setAttribute('today_income', $ticketIncome + $manualIncome);
+            $account->setAttribute('today_expenses', $expenses);
         });
     }
 }

@@ -340,7 +340,7 @@ class DemoDataSeeder extends Seeder
 
     private function createFinanceTransactions(User $actor): void
     {
-        $accounts = FinanceAccount::query()->whereIn('name', ['C-Efectivo', 'C-Bancomer', 'C-Lou', 'C-Pilar'])->pluck('id', 'name');
+        $accounts = FinanceAccount::query()->whereIn('name', ['C-Efectivo', 'C-Bancomer'])->pluck('id', 'name');
         $categories = FinanceExpenseCategory::query()->pluck('id', 'name');
         $concepts = ['Venta de producto demo', 'Propina recibida', 'Compra de papelería', 'Servicio de internet', 'Mantenimiento de equipo', 'Ajuste de caja demo'];
         for ($index = 0; $index < 30; $index++) {
@@ -352,7 +352,7 @@ class DemoDataSeeder extends Seeder
             $amount = 150 + ($index * 37.5);
             $base = ['finance_account_id' => $source, 'transfer_to_account_id' => null, 'finance_expense_category_id' => $type === 'expense' ? $categories[['Compras', 'Servicios', 'Otros'][$index % 3]] : null, 'type' => $type, 'direction' => $type === 'income' ? 'in' : ($type === 'expense' ? 'out' : ($type === 'adjustment' ? ($index % 2 === 0 ? 'in' : 'out') : 'out')), 'concept' => $concepts[$index % count($concepts)], 'amount' => round($amount, 2), 'occurred_on' => $date, 'reference' => 'DEMO-MOV-'.str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT), 'notes' => 'Movimiento generado para mostrar filtros y reportes.', 'created_by' => $actor->id];
             if ($type === 'transfer') {
-                $destination = $accounts[$index % 2 === 0 ? 'C-Lou' : 'C-Pilar'];
+                $destination = $accounts[$index % 2 === 0 ? 'C-Bancomer' : 'C-Efectivo'];
                 FinanceTransaction::create(array_merge($base, ['transfer_to_account_id' => $destination, 'direction' => 'out']));
                 FinanceTransaction::create(array_merge($base, ['finance_account_id' => $destination, 'transfer_to_account_id' => $source, 'direction' => 'in']));
             } else {

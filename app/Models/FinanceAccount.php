@@ -25,6 +25,11 @@ class FinanceAccount extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function payablePayments(): HasMany
+    {
+        return $this->hasMany(PayablePayment::class);
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

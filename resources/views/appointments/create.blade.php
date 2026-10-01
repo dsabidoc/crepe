@@ -95,6 +95,7 @@
             let shown = new Date(selected);
             let availableTimes = null;
             let durationWasSelected = {{ old('duration_minutes') ? 'true' : 'false' }};
+            const businessToday = @js(now()->toDateString());
             const monthFormatter = new Intl.DateTimeFormat('es-MX', { month: 'long', year: 'numeric' });
             const fullFormatter = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
             const pad = (number) => String(number).padStart(2, '0');
@@ -138,7 +139,7 @@
                 const end = toTime(toMinutes(start) + duration);
                 const estimated = estimatedDuration();
                 const now = new Date();
-                const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+                const today = businessToday;
                 const nowMinutes = now.getHours() * 60 + now.getMinutes();
                 const isPastToday = dateInput.value === today;
                 timeLabel.textContent = `${start} – ${end}`;
@@ -185,8 +186,7 @@
                     button.type = 'button';
                     button.textContent = day.getDate();
                     button.className = `calendar-day${day.getMonth() !== shown.getMonth() ? ' muted' : ''}${iso(day) === iso(selected) ? ' selected' : ''}`;
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
+                    const today = new Date(`${businessToday}T00:00:00`);
                     button.disabled = day < today;
                     button.addEventListener('click', () => {
                         selected = day;

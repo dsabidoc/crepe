@@ -18,11 +18,17 @@ class AppointmentController extends Controller
 {
     public function create(Request $request): View
     {
+        $today = now()->toDateString();
+        $requestedDate = (string) $request->input('date', $today);
+        $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $requestedDate) && $requestedDate >= $today
+            ? $requestedDate
+            : $today;
+
         return view('appointments.create', [
             'customers' => Customer::query()->where('status', 'active')->orderBy('first_name')->get(),
             'employees' => Employee::query()->where('is_bookable', true)->where('status', 'active')->orderBy('first_name')->get(),
             'services' => SalonService::query()->with('category')->where('status', 'active')->orderBy('service_category_id')->orderBy('name')->get(),
-            'date' => (string) $request->input('date', now()->toDateString()),
+            'date' => $date,
             'time' => (string) $request->input('time', '10:00'),
             'selectedCustomerId' => $request->integer('customer_id'),
             'selectedEmployeeId' => $request->integer('employee_id'),

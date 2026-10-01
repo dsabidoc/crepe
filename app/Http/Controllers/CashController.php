@@ -22,7 +22,10 @@ class CashController extends Controller
         $sessions = CashSession::query()
             ->with([
                 'closedBy',
+                'cashTransactions.expenseCategory',
                 'openedBy',
+                'payments.ticket.appointment.employee',
+                'payments.ticket.appointment.secondaryEmployee',
                 'payments.ticket.customer',
                 'register',
                 'verifiedBy',
@@ -41,6 +44,9 @@ class CashController extends Controller
             ->filter(fn (CashSession $session): bool => $session->business_date?->isToday() ?? false)
             ->keyBy('cash_register_id');
         $pendingCuts = $isAdmin ? $sessions->where('status', 'pending_review')->values() : collect();
+        $expectedBySession = $sessions->mapWithKeys(fn (CashSession $session): array => [
+            $session->id => $cashCuts->expectedAmounts($session),
+        ]);
 
         return view('cash.index', [
             'canAuthorize' => $request->user()->can('cash.authorize'),
@@ -50,6 +56,7 @@ class CashController extends Controller
             'todaySessions' => $todaySessions,
             'todayOpenSessionsCount' => $todaySessions->where('status', 'open')->count(),
             'defaultOpeningFloat' => $cashCuts->defaultOpeningFloat(),
+            'expectedBySession' => $expectedBySession,
             'isAdmin' => $isAdmin,
             'occupiedRegisterIds' => $occupiedRegisterIds,
             'registerId' => $registerId,
@@ -71,6 +78,17 @@ class CashController extends Controller
         return back()->with('success', 'Caja abierta correctamente.');
     }
 
+    public function startDay(Request $request, CashCutService $cashCuts): RedirectResponse
+    {
+        $data = $request->validate([
+            'opening_float' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $cashCuts->openAvailableDailySessionFor($request->user()->id, (float) $data['opening_float']);
+
+        return redirect()->route('workspace', 'recepcion')->with('success', 'Tu caja está abierta. Puedes comenzar a operar.');
+    }
+
     public function generateCut(Request $request, CashSession $cashSession, CashCutService $cashCuts): RedirectResponse
     {
         abort_unless($request->user()->can('cash.authorize') || $cashSession->opened_by === $request->user()->id, 403);
@@ -78,6 +96,7 @@ class CashController extends Controller
             'actual_card' => ['required', 'numeric', 'min:0'],
             'actual_cash' => ['required', 'numeric', 'min:0'],
             'actual_change' => ['required', 'numeric', 'min:0'],
+            'actual_gift_card' => ['required', 'numeric', 'min:0'],
             'actual_other' => ['required', 'numeric', 'min:0'],
             'actual_transfer' => ['required', 'numeric', 'min:0'],
             'cashier_notes' => ['nullable', 'string', 'max:2000'],
@@ -89,6 +108,7 @@ class CashController extends Controller
                 'actual_card' => (float) $data['actual_card'],
                 'actual_cash' => (float) $data['actual_cash'],
                 'actual_change' => (float) $data['actual_change'],
+                'actual_gift_card' => (float) $data['actual_gift_card'],
                 'actual_other' => (float) $data['actual_other'],
                 'actual_transfer' => (float) $data['actual_transfer'],
                 'cashier_notes' => $data['cashier_notes'] ?? null,

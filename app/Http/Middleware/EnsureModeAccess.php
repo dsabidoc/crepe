@@ -21,6 +21,9 @@ class EnsureModeAccess
             'recepcion' => 'mode.reception.access',
             'color-bar' => 'mode.color-bar.access',
             'almacen' => 'mode.almacen.access',
+            'finanzas' => 'finance.view',
+            'promos' => 'settings.manage',
+            'configuracion' => 'settings.manage',
         ];
 
         abort_unless($request->user() && isset($permissions[$mode]) && $request->user()->can($permissions[$mode]), 403);

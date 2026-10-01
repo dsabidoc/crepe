@@ -3,19 +3,26 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\AppointmentService;
 use App\Models\CashRegister;
 use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\InventoryBalance;
+use App\Models\Product;
+use App\Models\ProductBrand;
 use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Models\SalonService;
 use App\Models\ServiceCategory;
+use App\Models\Supplier;
 use App\Models\Ticket;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\CrepeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ModeAccessTest extends TestCase
@@ -123,6 +130,29 @@ class ModeAccessTest extends TestCase
             ->assertSee('Reportes');
     }
 
+    public function test_warehouse_can_maintain_product_brand_and_supplier_catalogs(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('products.catalogs'))
+            ->assertOk()
+            ->assertSee('Marcas y proveedores');
+
+        $this->actingAs($user)
+            ->post(route('products.brands.store'), ['name' => 'Davines'])
+            ->assertRedirect();
+        $this->actingAs($user)
+            ->post(route('suppliers.store'), ['name' => 'Proveedor de prueba', 'payment_grace_days' => 15])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('product_brands', ['name' => 'Davines']);
+        $this->assertDatabaseHas('suppliers', ['name' => 'Proveedor de prueba', 'payment_grace_days' => 15]);
+        $this->assertTrue(ProductBrand::query()->where('name', 'Davines')->value('is_active'));
+        $this->assertTrue(Supplier::query()->where('name', 'Proveedor de prueba')->value('is_active'));
+    }
+
     public function test_reception_navigation_hides_administration_only_modules(): void
     {
         $this->seed(CrepeSeeder::class);
@@ -193,8 +223,52 @@ class ModeAccessTest extends TestCase
             ->assertDontSee('Reportes');
     }
 
+    public function test_color_bar_ticket_list_only_shows_tickets_with_a_color_bar_service(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $customer = Customer::query()->firstOrFail();
+        $employee = Employee::query()->where('is_bookable', true)->firstOrFail();
+        $service = SalonService::query()->where('name', 'Corte')->firstOrFail();
+        $appointment = Appointment::query()->create([
+            'customer_id' => $customer->id,
+            'primary_employee_id' => $employee->id,
+            'starts_at' => now()->addWeek(),
+            'ends_at' => now()->addWeek()->addHour(),
+            'status' => 'confirmed',
+            'estimated_total' => $service->base_price,
+            'created_by' => $user->id,
+        ]);
+        AppointmentService::query()->create([
+            'appointment_id' => $appointment->id,
+            'salon_service_id' => $service->id,
+            'employee_id' => $employee->id,
+            'name_snapshot' => $service->name,
+            'estimated_price' => $service->base_price,
+            'estimated_duration_minutes' => $service->estimated_duration_minutes,
+        ]);
+        $ineligibleTicket = Ticket::query()->create([
+            'code' => '#NO-COLOR-BAR',
+            'customer_id' => $customer->id,
+            'appointment_id' => $appointment->id,
+            'ticket_type' => 'appointment',
+            'status' => 'open',
+            'estimated_total' => $service->base_price,
+            'opened_at' => now(),
+        ]);
+        $eligibleTicket = Ticket::query()->whereHas('appointment.services.service', fn ($query) => $query->where('requires_color_bar', true))->firstOrFail();
+
+        $this->actingAs($user)
+            ->withSession(['crepe.mode' => 'color-bar'])
+            ->get(route('tickets.index'))
+            ->assertOk()
+            ->assertSee($eligibleTicket->code)
+            ->assertDontSee($ineligibleTicket->code);
+    }
+
     public function test_an_overlapping_appointment_is_rejected(): void
     {
+        $this->travelTo(Carbon::parse('2026-09-28 08:00:00', config('app.timezone')));
         $this->seed(CrepeSeeder::class);
         $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $data = [
@@ -213,6 +287,45 @@ class ModeAccessTest extends TestCase
             ->post(route('appointments.store'), $data)
             ->assertRedirect(route('appointments.create'))
             ->assertSessionHasErrors('time');
+
+        $this->travelBack();
+    }
+
+    public function test_past_dates_and_times_cannot_be_booked(): void
+    {
+        $this->travelTo(Carbon::parse('2026-09-30 10:30:00', config('app.timezone')));
+        $this->seed(CrepeSeeder::class);
+        $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $customer = Customer::query()->firstOrFail();
+        $employee = Employee::query()->where('email', 'ana@crepe.mx')->firstOrFail();
+        $service = SalonService::query()->where('name', 'Corte')->firstOrFail();
+        $data = [
+            'customer_id' => $customer->id,
+            'primary_employee_id' => $employee->id,
+            'duration_minutes' => 60,
+            'service_ids' => [$service->id],
+        ];
+
+        $this->actingAs($user)
+            ->getJson(route('appointments.availability', [
+                'date' => '2026-09-29',
+                'duration_minutes' => 60,
+                'employee_ids' => [$employee->id],
+            ]))
+            ->assertOk()
+            ->assertExactJson(['available' => []]);
+
+        $this->actingAs($user)->from(route('appointments.create'))
+            ->post(route('appointments.store'), [...$data, 'date' => '2026-09-29', 'time' => '10:00'])
+            ->assertRedirect(route('appointments.create'))
+            ->assertSessionHasErrors(['time' => 'No puedes reservar una fecha u hora que ya pasó.']);
+
+        $this->actingAs($user)->from(route('appointments.create'))
+            ->post(route('appointments.store'), [...$data, 'date' => '2026-09-30', 'time' => '10:00'])
+            ->assertRedirect(route('appointments.create'))
+            ->assertSessionHasErrors(['time' => 'No puedes reservar una fecha u hora que ya pasó.']);
+
+        $this->travelBack();
     }
 
     public function test_agenda_week_runs_from_monday_to_sunday_and_filters_appointments_by_stylist(): void
@@ -271,6 +384,7 @@ class ModeAccessTest extends TestCase
 
     public function test_appointment_reserves_the_duration_selected_by_reception(): void
     {
+        $this->travelTo(Carbon::parse('2026-09-28 08:00:00', config('app.timezone')));
         $this->seed(CrepeSeeder::class);
         $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $customer = Customer::query()->firstOrFail();
@@ -294,10 +408,13 @@ class ModeAccessTest extends TestCase
 
         $this->assertSame('14:00', $appointment->starts_at->format('H:i'));
         $this->assertSame('16:00', $appointment->ends_at->format('H:i'));
+
+        $this->travelBack();
     }
 
     public function test_bookable_stylist_without_a_personal_schedule_uses_salon_hours(): void
     {
+        $this->travelTo(Carbon::parse('2026-09-28 08:00:00', config('app.timezone')));
         $this->seed(CrepeSeeder::class);
         $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $stylist = Employee::query()->create([
@@ -324,6 +441,8 @@ class ModeAccessTest extends TestCase
             'starts_at' => '2026-09-28 10:00:00',
             'ends_at' => '2026-09-28 12:00:00',
         ]);
+
+        $this->travelBack();
     }
 
     public function test_seeded_ticket_can_be_paid_without_exceeding_its_balance(): void
@@ -359,7 +478,8 @@ class ModeAccessTest extends TestCase
         $this->actingAs($administrator)->post(route('cash.cuts.store', $cashSession), [
             'actual_card' => 100,
             'actual_cash' => 0,
-            'actual_change' => 2500,
+            'actual_change' => 1250,
+            'actual_gift_card' => 0,
             'actual_other' => 0,
             'actual_transfer' => 0,
             'cashier_notes' => 'Corte contado correctamente.',
@@ -371,6 +491,14 @@ class ModeAccessTest extends TestCase
             'expected_card' => 100,
             'difference' => 0,
         ]);
+
+        $this->actingAs($administrator)
+            ->get(route('cash.index'))
+            ->assertOk()
+            ->assertSee('DETALLE DEL CORTE')
+            ->assertSee($ticket->code)
+            ->assertSee('Tiempo hasta cobro')
+            ->assertSee('Enviado');
 
         $this->actingAs($administrator)->post(route('cash.cuts.confirm', $cashSession), [
             'verification_notes' => 'Revisado por administración.',
@@ -394,7 +522,8 @@ class ModeAccessTest extends TestCase
         $this->actingAs($administrator)->post(route('cash.cuts.store', $cashSession), [
             'actual_card' => 0,
             'actual_cash' => 0,
-            'actual_change' => 2500,
+            'actual_change' => 1250,
+            'actual_gift_card' => 0,
             'actual_other' => 0,
             'actual_transfer' => 0,
         ])->assertSessionHasNoErrors();
@@ -456,6 +585,33 @@ class ModeAccessTest extends TestCase
         $this->assertEquals($before - 1, (float) $balance->fresh()->available_quantity);
     }
 
+    public function test_ticket_can_add_a_second_responsible_stylist_without_exposing_commission_details(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $ticket = Ticket::query()->with('appointment')->whereNotNull('appointment_id')->firstOrFail();
+        $secondaryStylist = Employee::query()
+            ->where('is_bookable', true)
+            ->where('status', 'active')
+            ->whereKeyNot($ticket->appointment->primary_employee_id)
+            ->firstOrFail();
+
+        $this->actingAs($administrator)
+            ->post(route('tickets.stylists.secondary.store', $ticket), ['secondary_employee_id' => $secondaryStylist->id])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $ticket->appointment_id,
+            'secondary_employee_id' => $secondaryStylist->id,
+        ]);
+        $this->actingAs($administrator)
+            ->get(route('tickets.show', $ticket))
+            ->assertOk()
+            ->assertSee('Estilistas responsables')
+            ->assertSee($secondaryStylist->full_name)
+            ->assertDontSee('Comisión');
+    }
+
     public function test_archiving_a_customer_keeps_the_record_out_of_active_lists(): void
     {
         $this->seed(CrepeSeeder::class);
@@ -482,6 +638,25 @@ class ModeAccessTest extends TestCase
 
         $this->assertDatabaseHas('products', ['sku' => 'MASK-TEST']);
         $this->assertDatabaseHas('product_variants', ['sku' => 'MASK-TEST-250', 'base_unit' => 'ml', 'content_quantity' => 250]);
+    }
+
+    public function test_administrator_can_attach_product_photos(): void
+    {
+        Storage::fake('public');
+        $this->seed(CrepeSeeder::class);
+        $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $product = Product::query()->firstOrFail();
+
+        $this->actingAs($user)->put(route('products.update', $product), [
+            'product_category_id' => $product->product_category_id, 'name' => $product->name, 'sku' => $product->sku,
+            'status' => 'active', 'variant_name' => $product->variants()->value('name'), 'base_unit' => 'unidad',
+            'content_quantity' => 1, 'cost' => 1, 'sale_price' => 2, 'minimum_stock' => 1,
+            'photos' => [UploadedFile::fake()->image('producto.png')],
+        ])->assertRedirect(route('products.index'));
+
+        $path = $product->fresh()->image_paths[0] ?? null;
+        $this->assertNotNull($path);
+        Storage::disk('public')->assertExists($path);
     }
 
     public function test_administrator_can_define_three_price_tiers_for_a_fixed_service(): void

@@ -73,6 +73,7 @@ class ColorBarController extends Controller
     {
         $data = $this->validatedFormula($request);
         $ticket = Ticket::query()->findOrFail($data['ticket_id']);
+        $this->ensureColorBarTicket($ticket);
         $location = InventoryLocation::query()->where('code', 'CB')->firstOrFail();
         $formulas->record($ticket, $location, $data['items'], $data['notes'] ?? null, $request->user()->id);
 
@@ -102,5 +103,17 @@ class ColorBarController extends Controller
             'items.*.unit' => ['required', Rule::in(['g', 'ml', 'l', 'lt'])],
             'items.*.notes' => ['nullable', 'string', 'max:300'],
         ]);
+    }
+
+    private function ensureColorBarTicket(Ticket $ticket): void
+    {
+        $eligible = $ticket->appointment()
+            ->whereHas('services.service', fn ($services) => $services->where('requires_color_bar', true))
+            ->exists()
+            || $ticket->items()->where('type', 'color_bar')->where('status', 'active')->exists();
+
+        throw_unless($eligible, ValidationException::withMessages([
+            'ticket_id' => 'Este ticket no tiene servicios que requieran Color Bar.',
+        ]));
     }
 }

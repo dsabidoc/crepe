@@ -9,9 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class CashSession extends Model
 {
     protected $fillable = [
-        'actual_card', 'actual_cash', 'actual_change', 'actual_other', 'actual_transfer', 'business_date',
+        'actual_card', 'actual_cash', 'actual_change', 'actual_gift_card', 'actual_other', 'actual_transfer', 'business_date',
         'cash_register_id', 'cashier_notes', 'closed_at', 'closed_by', 'difference', 'expected_card',
-        'expected_cash', 'expected_other', 'expected_transfer', 'opened_at', 'opened_by', 'opening_float',
+        'expected_cash', 'expected_gift_card', 'expected_other', 'expected_transfer', 'opened_at', 'opened_by', 'opening_float',
         'status', 'verification_notes', 'verified_at', 'verified_by',
     ];
 
@@ -21,6 +21,7 @@ class CashSession extends Model
             'actual_card' => 'decimal:2',
             'actual_cash' => 'decimal:2',
             'actual_change' => 'decimal:2',
+            'actual_gift_card' => 'decimal:2',
             'actual_other' => 'decimal:2',
             'actual_transfer' => 'decimal:2',
             'business_date' => 'date',
@@ -28,6 +29,7 @@ class CashSession extends Model
             'difference' => 'decimal:2',
             'expected_card' => 'decimal:2',
             'expected_cash' => 'decimal:2',
+            'expected_gift_card' => 'decimal:2',
             'expected_other' => 'decimal:2',
             'expected_transfer' => 'decimal:2',
             'opened_at' => 'datetime',
@@ -44,6 +46,11 @@ class CashSession extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function cashTransactions(): HasMany
+    {
+        return $this->hasMany(FinanceTransaction::class);
     }
 
     public function openedBy(): BelongsTo

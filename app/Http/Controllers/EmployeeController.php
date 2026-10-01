@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\JobPosition;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -48,7 +50,11 @@ class EmployeeController extends Controller
      */
     public function create(): View
     {
-        return view('employees.form', ['employee' => new Employee, 'roles' => $this->systemRoles()]);
+        return view('employees.form', [
+            'employee' => new Employee,
+            'roles' => $this->systemRoles(),
+            'jobPositions' => $this->jobPositions(),
+        ]);
     }
 
     /**
@@ -66,7 +72,11 @@ class EmployeeController extends Controller
      */
     public function show(Employee $employee): View
     {
-        return view('employees.form', ['employee' => $employee->load('user.roles'), 'roles' => $this->systemRoles()]);
+        return view('employees.form', [
+            'employee' => $employee->load('user.roles'),
+            'roles' => $this->systemRoles(),
+            'jobPositions' => $this->jobPositions(),
+        ]);
     }
 
     /**
@@ -106,10 +116,9 @@ class EmployeeController extends Controller
         $data = $request->validate([
             'first_name' => ['required', 'string', 'max:100'], 'last_name' => ['nullable', 'string', 'max:100'],
             'email' => ['nullable', 'email', 'max:255'], 'phone' => ['nullable', 'string', 'max:32'],
-            'position' => ['required', 'string', 'max:100'], 'hired_at' => ['nullable', 'date'],
+            'position' => ['required', 'string', 'max:100', Rule::exists('job_positions', 'name')->where('is_active', true)], 'hired_at' => ['nullable', 'date'],
             'salary' => ['nullable', 'numeric', 'min:0'], 'salary_type' => ['nullable', 'string', 'max:32'],
             'commission_rate' => ['nullable', 'numeric', 'between:0,100'],
-            'product_commission_rate' => ['nullable', 'numeric', 'between:0,100'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'is_bookable' => ['nullable', 'boolean'], 'status' => ['required', 'in:active,inactive'],
             'system_access_enabled' => ['nullable', 'boolean'],
@@ -165,5 +174,13 @@ class EmployeeController extends Controller
             ->orderBy('name')
             ->pluck('name')
             ->all();
+    }
+
+    /**
+     * @return Collection<int, JobPosition>
+     */
+    private function jobPositions(): Collection
+    {
+        return JobPosition::query()->active()->orderBy('sort_order')->orderBy('name')->get();
     }
 }

@@ -4,15 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\CashRegister;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\FinanceAccount;
-use App\Models\InventoryLocation;
 use App\Models\ProductVariant;
 use App\Models\Promotion;
 use App\Models\SalonService;
 use App\Models\Ticket;
 use App\Models\TicketItem;
+use App\Services\AppointmentService;
 use App\Services\CashCutService;
-use App\Services\InventoryService;
 use App\Services\TicketService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,6 +27,19 @@ class TicketController extends Controller
     {
         return view('tickets.create-sale', [
             'customers' => Customer::query()->where('status', 'active')->orderBy('first_name')->get(),
+            'commissionableEmployees' => Employee::query()->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get(),
+            'variants' => ProductVariant::query()
+                ->with([
+                    'product',
+                    'balances' => fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', 'REC')),
+                ])
+                ->whereHas('product', fn ($query) => $query->where('status', 'active')->where('is_color_bar_usable', false))
+                ->where('sale_price', '>', 0)
+                ->whereHas('balances', fn ($query) => $query
+                    ->where('available_quantity', '>', 0)
+                    ->whereHas('location', fn ($locations) => $locations->where('code', 'REC')))
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
@@ -36,9 +49,21 @@ class TicketController extends Controller
             'customer_id' => ['nullable', Rule::exists('customers', 'id')],
             'customer_name' => ['nullable', 'string', 'max:200'],
             'customer_phone' => ['nullable', 'string', 'max:32'],
+            'products' => ['required', 'array', 'min:1'],
+            'products.*.product_variant_id' => ['required', 'integer', 'distinct', Rule::exists('product_variants', 'id')],
+            'products.*.selected' => ['nullable', 'boolean'],
+            'products.*.quantity' => ['nullable', 'numeric', 'min:1'],
+            'products.*.employee_id' => ['nullable', Rule::exists('employees', 'id')->where('status', 'active')],
         ]);
+        $products = collect($data['products'])->filter(fn (array $product): bool => (bool) ($product['selected'] ?? false));
+        if ($products->isEmpty()) {
+            throw ValidationException::withMessages(['products' => 'Selecciona al menos un producto para crear la venta.']);
+        }
+        if ($products->contains(fn (array $product): bool => ! isset($product['quantity']))) {
+            throw ValidationException::withMessages(['products' => 'Indica la cantidad de cada producto seleccionado.']);
+        }
 
-        $ticket = DB::transaction(function () use ($data, $tickets): Ticket {
+        $ticket = DB::transaction(function () use ($data, $products, $request, $tickets): Ticket {
             $customerId = $data['customer_id'] ?? null;
             $customerName = trim((string) ($data['customer_name'] ?? ''));
 
@@ -53,10 +78,21 @@ class TicketController extends Controller
                 $customerId = $customer->id;
             }
 
-            return $tickets->createProductSale($customerId);
+            $ticket = $tickets->createProductSale($customerId);
+            foreach ($products as $product) {
+                $tickets->addReceptionProduct(
+                    $ticket,
+                    (int) $product['product_variant_id'],
+                    (float) $product['quantity'],
+                    $request->user()->id,
+                    $product['employee_id'] ?? null,
+                );
+            }
+
+            return $ticket;
         });
 
-        return redirect()->route('tickets.show', $ticket)->with('success', 'Venta de producto creada. Agrega los productos para continuar.');
+        return redirect()->route('tickets.show', $ticket)->with('success', 'Venta de producto creada con sus productos.');
     }
 
     public function index(Request $request): View
@@ -72,7 +108,11 @@ class TicketController extends Controller
                     ->where('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%"))))
             ->when(in_array($status, ['open', 'in_service', 'paid'], true), fn ($query) => $query->where('status', $status))
-            ->when(session('crepe.mode') === 'color-bar', fn ($query) => $query->where('ticket_type', '!=', 'product_sale'))
+            ->when(session('crepe.mode') === 'color-bar', fn ($query) => $query->where(function ($colorBarTickets): void {
+                $colorBarTickets
+                    ->whereHas('appointment.services.service', fn ($services) => $services->where('requires_color_bar', true))
+                    ->orWhereHas('items', fn ($items) => $items->where('type', 'color_bar')->where('status', 'active'));
+            }))
             ->when($from, fn ($query, $from) => $query->whereDate('opened_at', '>=', $from))
             ->when($to, fn ($query, $to) => $query->whereDate('opened_at', '<=', $to))
             ->latest('opened_at')->paginate(24)->withQueryString();
@@ -83,7 +123,16 @@ class TicketController extends Controller
     public function show(Ticket $ticket, Request $request, CashCutService $cashCuts): View
     {
         abort_if($ticket->ticket_type === 'product_sale' && ! $request->user()->can('mode.reception.access'), 403);
-        $ticket->load(['customer', 'appointment.services', 'items', 'adjustments', 'payments']);
+        $isCashAdministrator = $request->user()->can('cash.authorize');
+        if (session('crepe.mode') === 'color-bar' && ! $isCashAdministrator) {
+            $isColorBarTicket = $ticket->appointment()
+                ->whereHas('services.service', fn ($services) => $services->where('requires_color_bar', true))
+                ->exists()
+                || $ticket->items()->where('type', 'color_bar')->where('status', 'active')->exists();
+
+            abort_unless($isColorBarTicket, 403);
+        }
+        $ticket->load(['customer', 'appointment.employee', 'appointment.secondaryEmployee', 'appointment.services', 'items', 'adjustments', 'payments']);
         $services = SalonService::query()
             ->with(['category', 'prices'])
             ->where('status', 'active')
@@ -98,7 +147,7 @@ class TicketController extends Controller
 
         $cashRegisters = CashRegister::query()->where('is_active', true)
             ->whereHas('sessions', fn ($query) => $query->where('status', 'open')->whereDate('business_date', now()->toDateString()))
-            ->when(! $request->user()->can('cash.authorize'), fn ($query) => $query->whereHas('sessions', fn ($sessions) => $sessions->where('opened_by', $request->user()->id)->where('status', 'open')->whereDate('business_date', now()->toDateString())))
+            ->when(! $isCashAdministrator, fn ($query) => $query->whereHas('sessions', fn ($sessions) => $sessions->where('opened_by', $request->user()->id)->where('status', 'open')->whereDate('business_date', now()->toDateString())))
             ->orderBy('name')->get();
         $cashSession = $cashCuts->sessionForPaymentPreview($request->user()->id);
         $promotions = Promotion::query()->where('status', 'active')->where(function ($query): void {
@@ -107,9 +156,13 @@ class TicketController extends Controller
             $query->whereNull('ends_at')->orWhere('ends_at', '>=', now());
         })->orderBy('name')->get();
 
-        $financeAccounts = FinanceAccount::query()->where('is_active', true)->orderBy('name')->get();
+        $financeAccounts = $isCashAdministrator
+            ? FinanceAccount::query()->where('is_active', true)->orderBy('name')->get()
+            : collect();
+        $responsibleEmployees = Employee::query()->where('is_bookable', true)->where('status', 'active')->orderBy('first_name')->get();
+        $commissionableEmployees = Employee::query()->where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
 
-        return view('tickets.show', compact('ticket', 'services', 'variants', 'cashRegisters', 'cashSession', 'financeAccounts', 'promotions'));
+        return view('tickets.show', compact('ticket', 'services', 'variants', 'cashRegisters', 'cashSession', 'financeAccounts', 'isCashAdministrator', 'promotions', 'responsibleEmployees', 'commissionableEmployees'));
     }
 
     public function addService(Request $request, Ticket $ticket): RedirectResponse
@@ -165,7 +218,7 @@ class TicketController extends Controller
                     'price_tier' => $priceTier,
                     'price_confirmed' => false,
                     'employee_id' => $employee?->id,
-                    'commission_rate' => $employee?->commission_rate,
+                    'employee_commission_rate' => $employee?->commission_rate,
                 ],
                 'added_by' => $request->user()->id,
             ]);
@@ -176,7 +229,10 @@ class TicketController extends Controller
 
     public function confirmService(Request $request, Ticket $ticket, TicketItem $item): RedirectResponse
     {
-        $data = $request->validate(['price_tier' => ['nullable', 'string', 'max:80']]);
+        $data = $request->validate([
+            'price_tier' => ['nullable', 'string', 'max:80'],
+            'unit_price' => ['nullable', 'numeric', 'min:0'],
+        ]);
 
         DB::transaction(function () use ($data, $request, $ticket, $item): void {
             $ticket = Ticket::query()->lockForUpdate()->findOrFail($ticket->id);
@@ -200,6 +256,18 @@ class TicketController extends Controller
                 $ticketItem->line_total = $tierPrice->sale_price;
                 $ticketItem->cost_snapshot = $tierPrice->cost;
                 $metadata['price_tier'] = $tierPrice->tier;
+            } elseif ($service?->price_type === 'variable') {
+                $unitPrice = $data['unit_price'] ?? $ticketItem->unit_price;
+
+                if ((float) $unitPrice < (float) $service->base_price) {
+                    throw ValidationException::withMessages([
+                        'unit_price' => 'El precio final no puede ser menor al mínimo configurado de $'.number_format((float) $service->base_price, 2).'.',
+                    ]);
+                }
+
+                $ticketItem->unit_price = $unitPrice;
+                $ticketItem->line_total = $unitPrice;
+                $metadata['catalog_price'] = (float) $service->base_price;
             }
 
             $metadata['price_confirmed'] = true;
@@ -212,42 +280,72 @@ class TicketController extends Controller
         return back()->with('success', 'Tipo de precio confirmado.');
     }
 
-    public function addProduct(Request $request, Ticket $ticket, InventoryService $inventory): RedirectResponse
+    public function addSecondaryStylist(Request $request, Ticket $ticket, AppointmentService $appointments): RedirectResponse
+    {
+        abort_unless($ticket->appointment !== null, 404);
+        abort_if($ticket->status === 'paid', 422);
+        $data = $request->validate([
+            'secondary_employee_id' => ['required', Rule::exists('employees', 'id')],
+        ]);
+
+        $appointments->assignSecondaryEmployee($ticket->appointment, (int) $data['secondary_employee_id']);
+
+        return back()->with('success', 'Estilista responsable agregada al ticket.');
+    }
+
+    public function addProduct(Request $request, Ticket $ticket, TicketService $tickets): RedirectResponse
     {
         abort_if($ticket->ticket_type === 'product_sale' && ! $request->user()->can('mode.reception.access'), 403);
         abort_if($ticket->status === 'paid', 422);
-        $data = $request->validate(['product_variant_id' => ['required', Rule::exists('product_variants', 'id')], 'quantity' => ['required', 'numeric', 'min:1']]);
-        DB::transaction(function () use ($data, $ticket, $request, $inventory): void {
-            $ticket = Ticket::query()->lockForUpdate()->findOrFail($ticket->id);
-            $variant = ProductVariant::query()->with('product')->findOrFail($data['product_variant_id']);
-            if ($variant->product->is_color_bar_usable) {
-                abort(422, 'Este producto sólo puede descontarse desde Color Bar.');
-            }
-            $reception = InventoryLocation::query()->where('code', 'REC')->firstOrFail();
-            $item = $ticket->items()->create(['type' => 'product', 'name_snapshot' => $variant->product->name, 'quantity' => $data['quantity'], 'unit' => $variant->base_unit, 'unit_price' => $variant->sale_price, 'line_total' => $variant->sale_price * $data['quantity'], 'cost_snapshot' => $variant->cost, 'status' => 'active', 'metadata' => ['product_id' => $variant->product_id, 'product_variant_id' => $variant->id], 'added_by' => $request->user()->id]);
-            $inventory->move($variant->id, $reception->id, -(float) $data['quantity'], 'sale', $request->user()->id, $item::class, $item->id, "Venta en {$ticket->code}");
-        });
+        $data = $request->validate(['product_variant_id' => ['required', Rule::exists('product_variants', 'id')], 'quantity' => ['required', 'numeric', 'min:1'], 'employee_id' => ['nullable', Rule::exists('employees', 'id')->where('status', 'active')]]);
+        $variant = ProductVariant::query()->with('product')->findOrFail($data['product_variant_id']);
+        abort_if(
+            $variant->product->status !== 'active' || $variant->product->is_color_bar_usable || (float) $variant->sale_price <= 0,
+            422,
+            'Este producto sólo puede descontarse desde Color Bar.',
+        );
+        $tickets->addReceptionProduct($ticket, (int) $data['product_variant_id'], (float) $data['quantity'], $request->user()->id, $data['employee_id'] ?? null);
 
         return back()->with('success', 'Producto agregado al ticket.');
     }
 
-    public function payment(Request $request, Ticket $ticket, TicketService $tickets): RedirectResponse
+    public function payment(Request $request, Ticket $ticket, TicketService $tickets, CashCutService $cashCuts): RedirectResponse
     {
+        $isCashAdministrator = $request->user()->can('cash.authorize');
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:.01'],
-            'cash_register_id' => ['required', Rule::exists('cash_registers', 'id')->where('is_active', true)],
-            'method' => ['required', Rule::in(['cash', 'card', 'transfer', 'other'])],
-            'finance_account_id' => ['nullable', Rule::exists('finance_accounts', 'id')->where('is_active', true)],
+            'method' => ['required', Rule::in(['cash', 'card', 'transfer', 'gift_card', 'other'])],
         ]);
-        $financeAccountId = $data['finance_account_id'] ?? CashRegister::query()->whereKey($data['cash_register_id'])->value('finance_account_id');
-        $financeAccountId ??= FinanceAccount::query()
-            ->where('is_active', true)
-            ->where('type', match ($data['method']) {
-                'cash' => 'cash',
-                'card', 'transfer' => 'bank',
-                default => 'other',
-            })->orderByDesc('is_primary')->orderBy('id')->value('id');
-        $tickets->registerPayment($ticket, (float) $data['amount'], $data['method'], (int) $data['cash_register_id'], $request->user()->id, $financeAccountId);
+        if ($isCashAdministrator) {
+            $data = array_merge($data, $request->validate([
+                'cash_register_id' => ['required', Rule::exists('cash_registers', 'id')->where('is_active', true)],
+                'finance_account_id' => ['nullable', Rule::exists('finance_accounts', 'id')->where('is_active', true)],
+            ]));
+            $cashRegisterId = (int) $data['cash_register_id'];
+            $financeAccountId = $data['finance_account_id'] ?? CashRegister::query()->whereKey($cashRegisterId)->value('finance_account_id');
+        } else {
+            $cashSession = $cashCuts->sessionForPaymentPreview($request->user()->id);
+            if ($cashSession === null) {
+                throw ValidationException::withMessages([
+                    'cash_register_id' => 'No tienes una caja abierta. Abre tu caja para comenzar a cobrar.',
+                ]);
+            }
+            $cashSession->loadMissing('register');
+            $cashRegisterId = $cashSession->cash_register_id;
+            $financeAccountId = $cashSession->register?->finance_account_id;
+        }
+        if ($data['method'] === 'gift_card') {
+            $financeAccountId = null;
+        } else {
+            $financeAccountId ??= FinanceAccount::query()
+                ->where('is_active', true)
+                ->where('type', match ($data['method']) {
+                    'cash' => 'cash',
+                    'card', 'transfer' => 'bank',
+                    default => 'other',
+                })->orderByDesc('is_primary')->orderBy('id')->value('id');
+        }
+        $tickets->registerPayment($ticket, (float) $data['amount'], $data['method'], $cashRegisterId, $request->user()->id, $financeAccountId);
 
         return back()->with('success', 'Pago registrado correctamente.');
     }
@@ -257,5 +355,19 @@ class TicketController extends Controller
         $tickets->close($ticket);
 
         return redirect()->route('tickets.show', $ticket)->with('success', 'Ticket cerrado y cita completada.');
+    }
+
+    public function reopen(Ticket $ticket, TicketService $tickets): RedirectResponse
+    {
+        $tickets->reopen($ticket);
+
+        return redirect()->route('tickets.show', $ticket)->with('success', 'Ticket reabierto. Los pagos registrados se conservaron para mantener la trazabilidad de caja.');
+    }
+
+    public function cancel(Ticket $ticket, TicketService $tickets): RedirectResponse
+    {
+        $tickets->cancel($ticket);
+
+        return redirect()->route('tickets.show', $ticket)->with('success', 'Ticket cancelado. El registro permanece disponible para auditoría.');
     }
 }

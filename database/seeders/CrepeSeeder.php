@@ -17,6 +17,7 @@ use App\Models\FinanceAccount;
 use App\Models\FinanceExpenseCategory;
 use App\Models\InventoryLocation;
 use App\Models\Product;
+use App\Models\ProductBrand;
 use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Models\SalonService;
@@ -40,7 +41,8 @@ class CrepeSeeder extends Seeder
      */
     public function run(): void
     {
-        AppSetting::put('cash.opening_float', AppSetting::value('cash.opening_float', 2500));
+        AppSetting::put('cash.opening_float', AppSetting::value('cash.opening_float', 1250));
+        $this->call(JobPositionSeeder::class);
         $permissions = [
             'mode.administration.access', 'mode.reception.access', 'mode.color-bar.access',
             'mode.almacen.access', 'products.manage', 'inventory.requests.manage',
@@ -78,7 +80,7 @@ class CrepeSeeder extends Seeder
 
         FinanceAccount::query()->updateOrCreate(['name' => 'C-Efectivo'], ['type' => 'cash', 'initial_balance' => 0, 'is_active' => true, 'is_primary' => true, 'created_by' => $user->id]);
         FinanceAccount::query()->updateOrCreate(['name' => 'C-Bancomer'], ['type' => 'bank', 'initial_balance' => 0, 'is_active' => true, 'is_primary' => true, 'created_by' => $user->id]);
-        foreach (['C-Lou', 'C-Pilar', 'C-Recepción 1', 'C-Recepción 2'] as $accountName) {
+        foreach (['C-Recepción 1', 'C-Recepción 2'] as $accountName) {
             FinanceAccount::query()->updateOrCreate(['name' => $accountName], ['type' => 'cash', 'initial_balance' => 0, 'is_active' => true, 'is_primary' => false, 'created_by' => $user->id]);
         }
         foreach (['Nómina', 'Servicios', 'Compras', 'Renta', 'Otros'] as $categoryName) {
@@ -177,13 +179,17 @@ class CrepeSeeder extends Seeder
         foreach ([['Coloración', '#9A5EEA'], ['Oxidantes', '#6B9DEA'], ['Retail', '#1A9B74']] as [$name, $color]) {
             ProductCategory::query()->updateOrCreate(['name' => $name], ['color' => $color]);
         }
+        foreach (['Wella', 'CREPÉ Care'] as $brandName) {
+            ProductBrand::query()->firstOrCreate(['name' => $brandName], ['is_active' => true]);
+        }
         $productCategories = ProductCategory::query()->pluck('id', 'name');
+        $productBrands = ProductBrand::query()->pluck('id', 'name');
         foreach ([
             ['Wella Koleston 7/1', 'Coloración', 'Wella', 'KOL-71', true, 'Coloración 7/1', 'g', 1000, 1.00, 8.00, 500, 2000],
             ['Oxidante 20 vol', 'Oxidantes', 'Wella', 'OX-20', true, 'Presentación 20 vol', 'ml', 1000, .40, 3.00, 500, 3000],
             ['Shampoo Restore', 'Retail', 'CREPÉ Care', 'SH-REST', false, '250 ml', 'unidad', 1, 210, 650, 4, 24],
         ] as [$name, $category, $brand, $sku, $colorBar, $variantName, $unit, $content, $cost, $price, $minimum, $maximum]) {
-            $product = Product::query()->updateOrCreate(['sku' => $sku], ['product_category_id' => $productCategories[$category], 'name' => $name, 'brand' => $brand, 'sku' => $sku, 'is_color_bar_usable' => $colorBar, 'status' => 'active']);
+            $product = Product::query()->updateOrCreate(['sku' => $sku], ['product_category_id' => $productCategories[$category], 'product_brand_id' => $productBrands[$brand], 'name' => $name, 'brand' => $brand, 'sku' => $sku, 'is_color_bar_usable' => $colorBar, 'status' => 'active']);
             ProductVariant::query()->updateOrCreate(['sku' => $sku.'-STD'], ['product_id' => $product->id, 'name' => $variantName, 'sku' => $sku.'-STD', 'base_unit' => $unit, 'content_quantity' => $content, 'cost' => $cost, 'sale_price' => $price, 'minimum_stock' => $minimum, 'maximum_stock' => $maximum]);
         }
         foreach ([['Almacén', 'ALM'], ['Color Bar', 'CB'], ['Recepción', 'REC']] as [$name, $code]) {
@@ -214,7 +220,7 @@ class CrepeSeeder extends Seeder
         foreach ($cashRegisters as $cashRegister) {
             CashSession::query()->updateOrCreate(
                 ['cash_register_id' => $cashRegister->id, 'business_date' => now()->toDateString()],
-                ['opened_by' => $user->id, 'opened_at' => now(), 'opening_float' => (float) AppSetting::value('cash.opening_float', 2500), 'status' => 'open'],
+                ['opened_by' => $user->id, 'opened_at' => now(), 'opening_float' => (float) AppSetting::value('cash.opening_float', 1250), 'status' => 'open'],
             );
         }
         foreach ($mariaTicket->items()->where('type', 'service')->get() as $item) {

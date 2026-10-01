@@ -80,4 +80,30 @@ class EmployeeSystemAccessTest extends TestCase
             'password' => 'contrasena-segura',
         ])->assertSessionHasErrors('email');
     }
+
+    public function test_administrator_manages_job_positions_and_employees_must_select_one(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+
+        $this->actingAs($administrator)->from(route('settings.edit'))->post(route('settings.job-positions.store'), [
+            'name' => 'Técnica de uñas',
+        ])->assertRedirect(route('settings.edit'));
+
+        $this->assertDatabaseHas('job_positions', ['name' => 'Técnica de uñas', 'is_active' => true]);
+
+        $this->actingAs($administrator)->get(route('employees.create'))
+            ->assertOk()
+            ->assertSee('Puesto')
+            ->assertSee('Técnica de uñas')
+            ->assertSee('<select name="position"', false);
+
+        $this->actingAs($administrator)->from(route('employees.create'))->post(route('employees.store'), [
+            'first_name' => 'Pilar',
+            'email' => 'pilar.catalogo@crepe.mx',
+            'position' => 'Puesto inexistente',
+            'status' => 'active',
+        ])->assertRedirect(route('employees.create'))
+            ->assertSessionHasErrors('position');
+    }
 }

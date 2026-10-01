@@ -9,4 +9,17 @@
             <footer><button class="button button-primary" type="submit">Guardar configuración</button></footer>
         </form>
     </section>
+    <section class="surface settings-card settings-catalog-card">
+        <header><div><p class="eyebrow">CATÁLOGOS</p><h2>Puestos del equipo</h2><p>Define los puestos disponibles al dar de alta o editar a una colaboradora.</p></div></header>
+        <form method="POST" action="{{ route('settings.job-positions.store') }}" class="settings-catalog-form">
+            @csrf
+            <label><span>Nuevo puesto</span><input name="name" value="{{ old('name') }}" maxlength="100" placeholder="Ej. Técnica de uñas" required></label>
+            <button class="button button-secondary" type="submit">Agregar puesto</button>
+        </form>
+        @error('name')<p class="form-error settings-catalog-error">{{ $message }}</p>@enderror
+        <div class="settings-catalog-list" aria-label="Puestos disponibles">
+            @foreach($jobPositions as $jobPosition)<span class="settings-catalog-chip">{{ $jobPosition->name }}</span>@endforeach
+        </div>
+    </section>
+    <section class="surface settings-card settings-catalog-card"><header><div><p class="eyebrow">COMISIONES</p><h2>Comisión por venta de productos</h2><p>Configura rangos de productos vendidos y los puestos a los que aplica la regla.</p></div></header><form method="POST" action="{{ route('settings.product-commission-rules.store') }}" class="settings-catalog-form">@csrf<label><span>Desde</span><input name="minimum_sales" type="number" min="0" required></label><label><span>Hasta <small>Opcional</small></span><input name="maximum_sales" type="number" min="0"></label><label><span>Comisión %</span><input name="commission_rate" type="number" min="0" max="100" step=".01" required></label><label><span>Aplica a puestos</span><select name="positions[]" multiple required>@foreach($jobPositions as $jobPosition)<option value="{{ $jobPosition->name }}">{{ $jobPosition->name }}</option>@endforeach</select></label><button class="button button-secondary" type="submit">Agregar rango</button></form><div class="settings-catalog-list">@foreach($productCommissionRules as $rule)<span class="settings-catalog-chip">{{ $rule->minimum_sales }}–{{ $rule->maximum_sales ?? '∞' }} ventas · {{ $rule->commission_rate }}% · {{ implode(', ', $rule->positions ?? []) }}</span>@endforeach</div></section>
 </x-layouts.app>
