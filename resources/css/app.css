@@ -1330,7 +1330,7 @@ dialog textarea {
 .app-body .list-filter-bar > label:not(.list-search) { display:grid; gap:8px; flex:1 1 150px; min-width:0; max-width:240px; font-size:13px; white-space:normal; }
 .app-body .list-filter-bar > label:not(.list-search) input { width:100%; }
 .app-body .list-filter-bar .list-search { flex:1 1 240px; min-width:0; max-width:none; width:auto; }
-.app-body .finance-movements-filter { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; align-items:start; }
+.app-body .finance-movements-filter { display:grid; grid-template-columns:auto auto; justify-content:start; gap:12px; align-items:center; }
 .app-body .finance-movements-filter-primary { display:grid; grid-template-columns:minmax(250px,320px) repeat(2,145px) minmax(175px,190px) minmax(175px,190px); gap:12px; align-items:center; min-width:0; }
 .app-body .finance-movements-filter-primary > :is(.list-search,input,select) { width:100%; min-width:0; max-width:none; }
 .app-body .finance-movements-filter-primary .list-search { min-height:44px; height:44px; }
@@ -1386,6 +1386,7 @@ dialog textarea {
     .app-body .app-nav nav { position:static; grid-column:1 / -1; grid-row:2; min-width:0; width:100%; height:auto; overflow-x:auto; gap:8px; padding:0 0 12px; }
     .app-body .app-nav nav a { min-height:40px; flex:0 0 auto; font-size:12px; }
     .app-body .color-layout { grid-template-columns:1fr; }
+    .app-body .finance-movements-filter { grid-template-columns:minmax(0,1fr); }
     .app-body .finance-movements-filter-primary { grid-template-columns:minmax(220px,1.4fr) repeat(2,minmax(130px,.8fr)) repeat(2,minmax(150px,1fr)); }
 }
 @media (max-width:760px) {
