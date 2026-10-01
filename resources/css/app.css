@@ -1450,7 +1450,7 @@ dialog textarea {
     .app-body .finance-movements-filter-primary .list-search { margin-right:2px; }
 }
 @media (min-width:761px) and (max-width:1100px) {
-    .app-body .finance-movements-filter-primary { grid-template-columns:minmax(270px,1.35fr) repeat(2,minmax(145px,.8fr)) repeat(2,minmax(175px,1fr)); gap:14px; }
+    .app-body .finance-movements-filter-primary { grid-template-columns:minmax(220px,1.35fr) repeat(2,minmax(125px,.8fr)) repeat(2,minmax(150px,1fr)); gap:12px; }
 }
 
 /* Solicitudes y CxP: jerarquía de unidades, pagos acumulados y evidencia. */
