@@ -46,9 +46,38 @@ class SettingsController extends Controller
 
     public function storeProductCommissionRule(Request $request): RedirectResponse
     {
-        $data = $request->validate(['minimum_sales' => ['required', 'integer', 'min:0'], 'maximum_sales' => ['nullable', 'integer', 'gte:minimum_sales'], 'commission_rate' => ['required', 'numeric', 'between:0,100'], 'positions' => ['required', 'array', 'min:1'], 'positions.*' => [Rule::exists('job_positions', 'name')->where('is_active', true)]]);
+        $data = $this->validatedProductCommissionRule($request);
+
         ProductCommissionRule::query()->create([...$data, 'is_active' => true]);
 
         return back()->with('success', 'Rango de comisión por productos agregado.');
+    }
+
+    public function updateProductCommissionRule(Request $request, ProductCommissionRule $productCommissionRule): RedirectResponse
+    {
+        $productCommissionRule->update($this->validatedProductCommissionRule($request));
+
+        return back()->with('success', 'Rango de comisión por productos actualizado.');
+    }
+
+    public function destroyProductCommissionRule(ProductCommissionRule $productCommissionRule): RedirectResponse
+    {
+        $productCommissionRule->delete();
+
+        return back()->with('success', 'Rango de comisión por productos eliminado.');
+    }
+
+    /**
+     * @return array{minimum_sales: int, maximum_sales: int|null, commission_rate: float, positions: array<int, string>}
+     */
+    private function validatedProductCommissionRule(Request $request): array
+    {
+        return $request->validate([
+            'minimum_sales' => ['required', 'integer', 'min:0'],
+            'maximum_sales' => ['nullable', 'integer', 'gte:minimum_sales'],
+            'commission_rate' => ['required', 'numeric', 'between:0,100'],
+            'positions' => ['required', 'array', 'min:1'],
+            'positions.*' => [Rule::exists('job_positions', 'name')->where('is_active', true)],
+        ]);
     }
 }

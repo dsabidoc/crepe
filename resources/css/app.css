@@ -926,3 +926,349 @@ dialog::backdrop { background:rgba(17,24,39,.38); backdrop-filter:blur(4px); }
     .catalog-quick-form .button,.catalog-supplier-form .button { width:100%; }
     .settings-catalog-error { margin-left:20px; margin-right:20px; }
 }
+
+/* Auditoría de composición: superficies y controles consistentes en todos los módulos. */
+.page-heading {
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:20px;
+    margin:0 0 30px;
+}
+.page-heading > div { min-width:0; }
+.page-heading h1 {
+    margin:0;
+    color:var(--ink);
+    font-size:30px;
+    line-height:1.2;
+    letter-spacing:-.035em;
+    font-weight:700;
+}
+.page-heading > div > p:last-child {
+    max-width:680px;
+    margin:7px 0 0;
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.6;
+}
+
+/* Las áreas de texto se comportan igual en formularios, paneles y diálogos. */
+.workspace textarea,
+dialog textarea {
+    width:100%;
+    min-height:112px;
+    padding:12px 14px;
+    border-radius:var(--control-radius);
+    line-height:1.5;
+    resize:vertical;
+}
+
+/* Los botones de acción conservan un ancho natural; sólo los botones explícitamente
+   "full" llenan un contenedor. */
+.button:not(.button-full) {
+    inline-size:max-content;
+    max-inline-size:100%;
+    flex:0 0 auto;
+    white-space:nowrap;
+}
+.cash-register-card .button:not(.button-full),
+.form-footer .button:not(.button-full),
+.settings-form footer .button:not(.button-full),
+.settings-catalog-form .button:not(.button-full),
+.catalog-quick-form .button:not(.button-full),
+.catalog-supplier-form .button:not(.button-full) {
+    width:max-content;
+}
+
+/* Nómina: evita que el formulario quede pegado al borde y mantiene una acción clara. */
+.payroll-page-heading { margin-bottom:26px; }
+.payroll-create,
+.payroll-item {
+    padding:26px 28px;
+}
+.payroll-create {
+    align-items:center;
+    gap:32px;
+}
+.payroll-create-copy { display:grid; gap:7px; }
+.payroll-create-copy h2 { margin:0; font-size:18px; letter-spacing:-.02em; }
+.payroll-create-copy p { max-width:360px; margin:0; color:var(--muted); font-size:13px; line-height:1.55; }
+.payroll-create-form { gap:18px; }
+.payroll-create-actions { display:flex; justify-content:flex-start; }
+
+/* Cabeceras de listados: título, filtros y contador se distribuyen sin comprimir campos. */
+.list-controls { gap:16px!important; }
+.list-controls-with-heading {
+    display:grid!important;
+    grid-template-columns:minmax(150px,.65fr) minmax(0,1.8fr) auto;
+    align-items:center!important;
+}
+.list-controls-with-heading > :first-child { min-width:0; }
+.list-controls-with-heading .record-count { justify-self:end; text-align:right; white-space:nowrap; }
+.list-controls .list-filter-bar { min-width:0; overflow-x:auto; padding:2px 0; scrollbar-width:thin; }
+.list-filter-bar > label:not(.list-search) { display:flex; align-items:center; gap:6px; flex:0 0 auto; color:#667085; font-size:11px; font-weight:650; white-space:nowrap; }
+.list-filter-bar > label:not(.list-search) input { width:132px; }
+
+@media (max-width:900px) {
+    .page-heading { align-items:flex-start; flex-direction:column; }
+    .payroll-create { grid-template-columns:1fr; gap:22px; padding:22px; }
+    .payroll-create-copy p { max-width:620px; }
+    .list-controls-with-heading { grid-template-columns:1fr!important; align-items:start!important; }
+    .list-controls-with-heading .record-count { justify-self:start; text-align:left; }
+}
+
+@media (max-width:560px) {
+    .workspace { padding-bottom:56px; }
+    .payroll-create,
+    .payroll-item { padding:20px; }
+    .payroll-create .field-grid { grid-template-columns:1fr; }
+    .settings-form footer .button:not(.button-full),
+    .settings-catalog-form .button:not(.button-full),
+    .catalog-quick-form .button:not(.button-full),
+    .catalog-supplier-form .button:not(.button-full),
+    .title-actions .button:not(.button-full) {
+        width:max-content;
+        flex:0 0 auto;
+    }
+}
+
+/* Rangos de comisión: formulario de alta y tabla editable por fila. */
+.settings-commission-card { max-width:1120px; }
+.settings-commission-add-form,
+.settings-commission-table-head,
+.settings-commission-row {
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,.7fr)) minmax(190px,1.5fr) auto;
+    gap:10px;
+    align-items:end;
+}
+.settings-commission-add-form {
+    padding:24px 28px 18px;
+    border-bottom:1px solid var(--line);
+}
+.settings-commission-add-form label,
+.settings-commission-row label {
+    display:grid;
+    gap:7px;
+    min-width:0;
+    color:#374151;
+    font-size:11px;
+    font-weight:600;
+}
+.settings-commission-add-form input,
+.settings-commission-row input {
+    width:100%;
+    min-height:48px;
+    border:1px solid var(--line);
+    border-radius:var(--control-radius);
+    padding:0 12px;
+    color:var(--ink);
+    background:#fff;
+    font:500 14px var(--font-sans);
+    outline:0;
+}
+.settings-commission-add-form input:focus,
+.settings-commission-row input:focus {
+    border-color:#cf8ea2;
+    box-shadow:0 0 0 4px rgba(185,80,112,.08);
+}
+.settings-commission-add-form .select-picker-trigger,
+.settings-commission-row .select-picker-trigger { min-height:48px; }
+.settings-commission-table { padding:0 28px 28px; }
+.settings-commission-table-head {
+    grid-template-columns:repeat(3,minmax(0,.7fr)) minmax(190px,1.5fr) minmax(160px,auto);
+    padding:16px 12px 10px;
+    color:#8a95a8;
+    font-size:10px;
+    font-weight:750;
+    letter-spacing:.08em;
+}
+.settings-commission-table-row {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:10px;
+    align-items:center;
+    padding:12px;
+    border:1px solid #edf0f5;
+    border-radius:12px;
+    background:#fff;
+}
+.settings-commission-row { min-width:0; align-items:center; }
+.settings-commission-delete { display:flex; align-items:center; }
+.settings-commission-delete .text-action-danger { margin:0; padding:10px 2px; }
+.settings-commission-empty { margin:0; padding:18px 0 0; }
+
+@media (max-width:720px) {
+    .settings-commission-add-form {
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .settings-commission-add-form label:nth-of-type(3),
+    .settings-commission-add-form label:nth-of-type(4) { grid-column:auto; }
+    .settings-commission-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .settings-commission-row label:nth-of-type(3),
+    .settings-commission-row label:nth-of-type(4),
+    .settings-commission-row .button { grid-column:1 / -1; }
+}
+
+@media (max-width:560px) {
+    .settings-commission-add-form { grid-template-columns:1fr; padding:20px 20px 14px; }
+    .settings-commission-add-form .button { width:max-content; }
+    .settings-commission-table { padding:0 20px 20px; }
+    .settings-commission-table-head { display:none; }
+    .settings-commission-table-row { grid-template-columns:1fr; gap:10px; }
+    .settings-commission-row { grid-template-columns:1fr 1fr; }
+    .settings-commission-delete { justify-content:flex-start; }
+}
+
+/* Agenda: los selectores se ajustan a la columna disponible y nunca se cortan. */
+.appointment-form.detail-form { overflow:visible; }
+.appointment-schedule-section .schedule-control { min-width:0; }
+.appointment-schedule-section .schedule-popover {
+    left:0;
+    width:100%;
+    max-width:100%;
+    padding:16px;
+    transform:none;
+}
+.appointment-schedule-section .time-popover {
+    max-height:min(420px,calc(100vh - 150px));
+    overflow-y:auto;
+    overscroll-behavior:contain;
+}
+.appointment-schedule-section .calendar-top { margin-bottom:14px; }
+.appointment-schedule-section .calendar-top button {
+    width:36px;
+    height:36px;
+    font-size:26px;
+}
+.appointment-schedule-section .calendar-weekdays,
+.appointment-schedule-section .calendar-grid { gap:5px; }
+.appointment-schedule-section .calendar-day {
+    min-width:0;
+    font-size:13px;
+}
+
+@media (max-width:620px) {
+    .appointment-schedule-section .schedule-popover { padding:14px; }
+    .appointment-schedule-section .calendar-weekdays,
+    .appointment-schedule-section .calendar-grid { gap:4px; }
+}
+
+/* Agenda: una cita breve sigue mostrando hora y clienta sin invadir el siguiente horario. */
+.agenda-board .appointment-block {
+    top:calc(var(--agenda-top) + 4px);
+    height:max(54px,calc(var(--agenda-height) - 8px));
+    padding:8px 9px;
+    gap:2px;
+}
+.agenda-board .appointment-block small {
+    min-height:13px;
+    line-height:1.2;
+}
+.agenda-board .appointment-block strong {
+    line-height:1.3;
+    overflow-wrap:anywhere;
+}
+.agenda-board .appointment-block span {
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+
+/* Ticket: las responsables viven junto al resumen y cada una conserva una acción clara. */
+.ticket-summary { display:grid; align-content:start; gap:16px; }
+.ticket-summary > h2 { margin:0; }
+.ticket-summary > div { margin-top:0; }
+.ticket-responsibles {
+    display:grid;
+    gap:14px;
+    margin:0;
+    padding:0 0 16px;
+    border-bottom:1px solid var(--line);
+}
+.ticket-responsibles header {
+    display:grid;
+    gap:11px;
+    padding:0;
+}
+.ticket-responsibles header .button { justify-self:start; min-height:38px; padding:0 12px; }
+.responsible-stylist-list { display:grid; gap:8px; }
+.responsible-stylist {
+    width:100%;
+    min-width:0;
+    padding:9px 10px;
+}
+.responsible-stylist-copy { display:grid; min-width:0; gap:3px; }
+.responsible-stylist-remove {
+    border:0;
+    padding:5px 0 5px 8px;
+    color:#b95070;
+    background:transparent;
+    font:700 10px var(--font-sans);
+}
+.responsible-stylist-remove:hover { color:#963b59; text-decoration:underline; }
+
+/* Modal de responsables: copia y cierre nunca compiten por la misma columna. */
+.stylist-dialog { overflow:hidden; }
+.stylist-dialog > form > header {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) 30px;
+    gap:16px;
+    align-items:start;
+    padding:23px 24px 18px;
+    border-bottom:1px solid var(--line);
+}
+.stylist-dialog > form > header > div { min-width:0; display:grid; gap:4px; }
+.stylist-dialog > form > header .eyebrow { margin:0 0 2px; }
+.stylist-dialog > form > header h2 { margin:0; color:#273349; font-size:18px; line-height:1.25; letter-spacing:-.025em; }
+.stylist-dialog > form > header p:not(.eyebrow) { margin:0; color:#8490a2; font-size:11px; line-height:1.45; }
+.stylist-dialog > form > header .dialog-close { width:30px; height:30px; }
+.stylist-dialog > form > footer { display:flex; justify-content:flex-end; gap:10px; padding:18px 24px; border-top:1px solid var(--line); }
+
+/* Servicios: filtros separados del selector de categorías para conservar jerarquía y espacio. */
+.services-list-controls {
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:center!important;
+    gap:16px!important;
+    padding:18px 20px!important;
+}
+.services-list-summary { display:grid; gap:3px; min-width:0; }
+.services-list-summary strong { color:#344055; font-size:13px; }
+.services-list-controls .list-filter-bar {
+    grid-column:1 / -1;
+    display:grid;
+    grid-template-columns:minmax(220px,1fr) minmax(130px,160px) minmax(165px,190px) auto auto;
+    gap:10px;
+    width:100%;
+    overflow:visible;
+    padding:0;
+}
+.services-list-controls .list-search { width:100%; }
+.services-list-controls .category-chips {
+    grid-column:1 / -1;
+    order:initial;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    overflow:visible;
+    padding:14px 0 0;
+    border-top:1px solid var(--line);
+    border-radius:0;
+    background:transparent;
+}
+.services-list-controls .category-chips .chip { padding:8px 11px; }
+
+@media (max-width:900px) {
+    .services-list-controls { grid-template-columns:1fr; align-items:start!important; }
+    .services-list-controls .list-filter-bar { grid-template-columns:minmax(220px,1fr) repeat(2,minmax(130px,1fr)) auto auto; }
+}
+
+@media (max-width:680px) {
+    .services-list-controls .list-filter-bar { grid-template-columns:1fr 1fr; }
+    .services-list-controls .list-search { grid-column:1 / -1; }
+    .services-list-controls .list-filter-bar .button,
+    .services-list-controls .filter-clear { justify-self:start; }
+    .stylist-dialog > form > header,
+    .stylist-dialog > form > footer { padding-left:18px; padding-right:18px; }
+}

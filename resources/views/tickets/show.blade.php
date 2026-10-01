@@ -25,11 +25,11 @@
         </div>
         <div class="ticket-hero-actions">
             <span class="pill {{ $ticket->status === 'paid' ? 'en-servicio' : 'confirmada' }}">{{ $ticket->appointment?->status === 'completed' ? 'CITA CERRADA' : ($ticket->status === 'paid' ? 'PAGADO' : str($ticket->status)->headline()) }}</span>
-            @if($ticket->appointment && in_array($ticket->appointment->status, ['scheduled', 'confirmed']))
-                <form method="POST" action="{{ route('appointments.destroy', $ticket->appointment) }}" onsubmit="return confirm('¿Cancelar esta cita?')">
+            @if($ticket->appointment && $ticket->status === 'open' && $ticket->payments->where('status', 'registered')->isEmpty() && ! in_array($ticket->appointment->status, ['cancelled', 'completed'], true))
+                <form method="POST" action="{{ route('appointments.destroy', $ticket->appointment) }}" onsubmit="return confirm('¿Cancelar esta cita y su ticket?')">
                     @csrf
                     @method('DELETE')
-                    <button class="button button-secondary">Cancelar cita</button>
+                    <button class="button button-secondary">Cancelar cita y ticket</button>
                 </form>
             @endif
             @if($isCashAdministrator && $ticket->status === 'paid')
@@ -38,7 +38,7 @@
                     <button class="button button-secondary">Reabrir ticket</button>
                 </form>
             @endif
-            @if($isCashAdministrator && $ticket->status === 'open' && $ticket->payments->where('status', 'registered')->isEmpty())
+            @if(! $ticket->appointment && $isCashAdministrator && $ticket->status === 'open' && $ticket->payments->where('status', 'registered')->isEmpty())
                 <form method="POST" action="{{ route('tickets.cancel', $ticket) }}" onsubmit="return confirm('¿Cancelar este ticket sin pagos?')">
                     @csrf
                     <button class="button button-secondary">Cancelar ticket</button>
@@ -47,19 +47,6 @@
             <a class="button button-secondary" href="{{ route('tickets.index') }}">Volver</a>
         </div>
     </section>
-
-    @if($ticket->appointment)
-        <section class="surface ticket-responsibles">
-            <header><div><h2>Estilistas responsables</h2><p>Responsables de atender este ticket.</p></div>@if(! $ticket->appointment->secondaryEmployee && $ticket->status !== 'paid')<button class="button button-secondary" type="button" data-open-stylist-dialog>+ Agregar otra estilista</button>@endif</header>
-            <div class="responsible-stylist-list">
-                <div class="responsible-stylist"><span class="customer-avatar">{{ str($ticket->appointment->employee?->first_name ?? 'E')->substr(0, 1) }}</span><span><strong>{{ $ticket->appointment->employee?->full_name ?? 'Sin asignar' }}</strong><small>Estilista responsable</small></span></div>
-                @if($ticket->appointment->secondaryEmployee)
-                    <div class="responsible-stylist"><span class="customer-avatar">{{ str($ticket->appointment->secondaryEmployee->first_name)->substr(0, 1) }}</span><span><strong>{{ $ticket->appointment->secondaryEmployee->full_name }}</strong><small>Estilista responsable</small></span></div>
-                @endif
-            </div>
-            @error('secondary_employee_id')<p class="form-error">{{ $message }}</p>@enderror
-        </section>
-    @endif
 
     <section class="ticket-layout">
         <div class="ticket-content">
@@ -129,6 +116,23 @@
         </div>
 
         <aside class="ticket-summary surface">
+            @if($ticket->appointment)
+                <section class="ticket-responsibles">
+                    <header>
+                        <div><h2>Estilistas responsables</h2><p>Responsables de atender este ticket.</p></div>
+                        @if(! $ticket->appointment->secondaryEmployee && $ticket->status !== 'paid')
+                            <button class="button button-secondary" type="button" data-open-stylist-dialog>+ Agregar otra estilista</button>
+                        @endif
+                    </header>
+                    <div class="responsible-stylist-list">
+                        <div class="responsible-stylist"><span class="customer-avatar">{{ str($ticket->appointment->employee?->first_name ?? 'E')->substr(0, 1) }}</span><span class="responsible-stylist-copy"><strong>{{ $ticket->appointment->employee?->full_name ?? 'Sin asignar' }}</strong><small>Estilista principal</small></span></div>
+                        @if($ticket->appointment->secondaryEmployee)
+                            <div class="responsible-stylist"><span class="customer-avatar">{{ str($ticket->appointment->secondaryEmployee->first_name)->substr(0, 1) }}</span><span class="responsible-stylist-copy"><strong>{{ $ticket->appointment->secondaryEmployee->full_name }}</strong><small>Estilista responsable</small></span><form method="POST" action="{{ route('tickets.stylists.secondary.destroy', $ticket) }}" onsubmit="return confirm('¿Quitar a esta estilista responsable?')">@csrf @method('DELETE')<button class="responsible-stylist-remove" type="submit">Quitar</button></form></div>
+                        @endif
+                    </div>
+                    @error('secondary_employee_id')<p class="form-error">{{ $message }}</p>@enderror
+                </section>
+            @endif
             <h2>Resumen</h2>
             @error('salon_service_id')<p class="form-error">{{ $message }}</p>@enderror
             @error('price_tier')<p class="form-error">{{ $message }}</p>@enderror

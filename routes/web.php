@@ -51,6 +51,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/tickets/{ticket}/servicios', [TicketController::class, 'addService'])->middleware('can:tickets.update')->name('tickets.services.store');
     Route::post('/tickets/{ticket}/servicios/{item}/confirmar', [TicketController::class, 'confirmService'])->middleware('can:tickets.update')->name('tickets.services.confirm');
     Route::post('/tickets/{ticket}/estilistas/secundaria', [TicketController::class, 'addSecondaryStylist'])->middleware('can:tickets.update')->name('tickets.stylists.secondary.store');
+    Route::delete('/tickets/{ticket}/estilistas/secundaria', [TicketController::class, 'removeSecondaryStylist'])->middleware('can:tickets.update')->name('tickets.stylists.secondary.destroy');
     Route::post('/tickets/{ticket}/productos', [TicketController::class, 'addProduct'])->middleware('can:tickets.update')->name('tickets.products.store');
     Route::post('/tickets/{ticket}/pagos', [TicketController::class, 'payment'])->middleware('can:tickets.charge')->name('tickets.payments.store');
     Route::post('/tickets/{ticket}/cerrar', [TicketController::class, 'close'])->middleware('can:tickets.charge')->name('tickets.close');
@@ -108,4 +109,6 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/configuracion', [SettingsController::class, 'update'])->middleware('can:settings.manage')->name('settings.update');
     Route::post('/configuracion/catalogos/puestos', [SettingsController::class, 'storeJobPosition'])->middleware('can:settings.manage')->name('settings.job-positions.store');
     Route::post('/configuracion/comisiones-producto', [SettingsController::class, 'storeProductCommissionRule'])->middleware('can:settings.manage')->name('settings.product-commission-rules.store');
+    Route::put('/configuracion/comisiones-producto/{productCommissionRule}', [SettingsController::class, 'updateProductCommissionRule'])->middleware('can:settings.manage')->name('settings.product-commission-rules.update');
+    Route::delete('/configuracion/comisiones-producto/{productCommissionRule}', [SettingsController::class, 'destroyProductCommissionRule'])->middleware('can:settings.manage')->name('settings.product-commission-rules.destroy');
 });

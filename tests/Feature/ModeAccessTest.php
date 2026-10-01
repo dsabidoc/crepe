@@ -609,7 +609,17 @@ class ModeAccessTest extends TestCase
             ->assertOk()
             ->assertSee('Estilistas responsables')
             ->assertSee($secondaryStylist->full_name)
+            ->assertSee('Quitar')
             ->assertDontSee('Comisión');
+
+        $this->actingAs($administrator)
+            ->delete(route('tickets.stylists.secondary.destroy', $ticket))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('appointments', [
+            'id' => $ticket->appointment_id,
+            'secondary_employee_id' => null,
+        ]);
     }
 
     public function test_archiving_a_customer_keeps_the_record_out_of_active_lists(): void

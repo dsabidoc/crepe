@@ -95,6 +95,6 @@ class AppointmentController extends Controller
         $appointment->ticket?->update(['status' => 'cancelled']);
 
         return redirect()->route('agenda.index', ['date' => $appointment->starts_at->toDateString()])
-            ->with('success', 'Cita cancelada. El registro permanece disponible para auditoría.');
+            ->with('success', 'Cita y ticket cancelados. El registro permanece disponible para auditoría.');
     }
 }

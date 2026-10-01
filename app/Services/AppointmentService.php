@@ -118,6 +118,16 @@ class AppointmentService
         });
     }
 
+    public function removeSecondaryEmployee(Appointment $appointment): Appointment
+    {
+        return DB::transaction(function () use ($appointment): Appointment {
+            $appointment = Appointment::query()->lockForUpdate()->findOrFail($appointment->id);
+            $appointment->update(['secondary_employee_id' => null]);
+
+            return $appointment->fresh(['employee', 'secondaryEmployee']);
+        });
+    }
+
     private function ensureAvailability(Employee $employee, Carbon $startsAt, Carbon $endsAt, ?int $ignoredAppointmentId = null): void
     {
         if ($startsAt->lessThanOrEqualTo(now())) {

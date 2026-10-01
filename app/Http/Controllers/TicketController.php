@@ -293,6 +293,16 @@ class TicketController extends Controller
         return back()->with('success', 'Estilista responsable agregada al ticket.');
     }
 
+    public function removeSecondaryStylist(Ticket $ticket, AppointmentService $appointments): RedirectResponse
+    {
+        abort_unless($ticket->appointment !== null, 404);
+        abort_if($ticket->status === 'paid', 422);
+
+        $appointments->removeSecondaryEmployee($ticket->appointment);
+
+        return back()->with('success', 'Estilista responsable eliminada del ticket.');
+    }
+
     public function addProduct(Request $request, Ticket $ticket, TicketService $tickets): RedirectResponse
     {
         abort_if($ticket->ticket_type === 'product_sale' && ! $request->user()->can('mode.reception.access'), 403);
