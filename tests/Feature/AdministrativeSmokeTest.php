@@ -17,6 +17,18 @@ class AdministrativeSmokeTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_product_editor_includes_the_products_category(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $product = Product::query()->firstOrFail();
+
+        $this->actingAs($administrator)
+            ->withSession(['crepe.mode' => 'almacen'])
+            ->get(route('products.edit', $product))
+            ->assertViewHas('categories', fn ($categories): bool => $categories->contains('id', $product->product_category_id));
+    }
+
     public function test_administrator_can_render_the_new_finance_and_inventory_modules(): void
     {
         $this->seed(CrepeSeeder::class);

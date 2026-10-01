@@ -81,7 +81,7 @@ class ProductController extends Controller
 
     public function edit(Product $product): View
     {
-        return view('products.form', ['product' => $product->load('variants'), 'categories' => ProductCategory::query()->where('is_active', true)->orderBy('name')->get(), 'brands' => ProductBrand::query()->where('is_active', true)->orderBy('name')->get(), 'suppliers' => Supplier::query()->where('is_active', true)->orderBy('name')->get()]);
+        return view('products.form', ['product' => $product->load('variants'), 'categories' => ProductCategory::query()->orderBy('name')->get(), 'brands' => ProductBrand::query()->where('is_active', true)->orderBy('name')->get(), 'suppliers' => Supplier::query()->where('is_active', true)->orderBy('name')->get()]);
     }
 
     public function update(Request $request, Product $product): RedirectResponse
