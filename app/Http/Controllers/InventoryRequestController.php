@@ -61,9 +61,18 @@ class InventoryRequestController extends Controller
             'notes' => ['nullable', 'string', 'max:600'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['required', 'integer', Rule::exists('product_variants', 'id')],
-            'items.*.requested_quantity' => ['required', 'numeric', 'min:0'],
+            'items.*.requested_units' => ['nullable', 'integer', 'min:0'],
+            'items.*.requested_quantity' => ['nullable', 'numeric', 'min:0'],
         ]);
-        $data['items'] = collect($data['items'])->filter(fn (array $item): bool => (float) $item['requested_quantity'] > 0)->values()->all();
+        $data['items'] = collect($data['items'])->map(function (array $item): array {
+            $hasUnits = array_key_exists('requested_units', $item) && $item['requested_units'] !== null;
+
+            return [
+                'product_variant_id' => (int) $item['product_variant_id'],
+                'requested_units' => $hasUnits ? (int) $item['requested_units'] : null,
+                'requested_quantity' => $hasUnits ? null : (float) ($item['requested_quantity'] ?? 0),
+            ];
+        })->filter(fn (array $item): bool => $item['requested_units'] !== null ? $item['requested_units'] > 0 : $item['requested_quantity'] > 0)->values()->all();
         if ($data['items'] === []) {
             throw ValidationException::withMessages(['items' => 'Selecciona al menos un producto y una cantidad.']);
         }
@@ -91,7 +100,8 @@ class InventoryRequestController extends Controller
                 $variant = $variants[(int) $item['product_variant_id']];
                 $inventoryRequest->items()->create([
                     'product_variant_id' => $variant->id,
-                    'requested_quantity' => $item['requested_quantity'],
+                    'requested_quantity' => $item['requested_units'] !== null ? $item['requested_units'] * (float) $variant->content_quantity : $item['requested_quantity'],
+                    'requested_units' => $item['requested_units'],
                     'unit' => $variant->base_unit,
                 ]);
             }
@@ -131,20 +141,25 @@ class InventoryRequestController extends Controller
             $warehouse = InventoryLocation::query()->where('code', 'ALM')->firstOrFail();
             foreach ($lockedRequest->items as $item) {
                 $requested = (float) $item->requested_quantity;
-                $entered = (float) ($data['items'][$item->id] ?? 0);
+                $contentQuantity = max((float) $item->variant->content_quantity, 0.001);
+                $requestedUnits = $item->requested_units !== null ? (int) $item->requested_units : null;
+                $enteredUnits = (float) ($data['items'][$item->id] ?? 0);
+                $entered = $requestedUnits === null ? $enteredUnits : $enteredUnits * $contentQuantity;
                 if ($entered > $requested) {
                     throw ValidationException::withMessages(["items.{$item->id}" => 'No puedes entregar más de lo solicitado.']);
                 }
                 $stock = (float) InventoryBalance::query()->where('inventory_location_id', $warehouse->id)->where('product_variant_id', $item->product_variant_id)->value('available_quantity');
-                $delivered = min($entered, $stock);
+                $delivered = $requestedUnits === null
+                    ? min($entered, $stock)
+                    : min(floor($enteredUnits), $requestedUnits, floor($stock / $contentQuantity)) * $contentQuantity;
                 if ($delivered > 0) {
                     $inventory->move($item->product_variant_id, $warehouse->id, -$delivered, 'transfer_out', $request->user()->id, InventoryRequest::class, $lockedRequest->id, "Salida {$lockedRequest->code}");
                     $inventory->move($item->product_variant_id, $lockedRequest->source_location_id, $delivered, 'transfer_in', $request->user()->id, InventoryRequest::class, $lockedRequest->id, "Entrega {$lockedRequest->code}");
                 }
-                $item->update(['delivered_quantity' => $delivered]);
+                $item->update(['delivered_quantity' => $delivered, 'delivered_units' => $requestedUnits === null ? null : (int) round($delivered / $contentQuantity)]);
             }
             $lockedRequest->update(['status' => 'closed', 'processed_by' => $request->user()->id, 'processed_at' => now(), 'closure_notes' => $data['closure_notes'] ?? null]);
-            AuditLog::create(['user_id' => $request->user()->id, 'action' => 'inventory.request.closed', 'subject_type' => InventoryRequest::class, 'subject_id' => $lockedRequest->id, 'before' => ['status' => 'pending'], 'after' => ['status' => 'closed', 'items' => $lockedRequest->items->map(fn ($item): array => ['item_id' => $item->id, 'requested' => (float) $item->requested_quantity, 'delivered' => (float) $item->delivered_quantity])->all()], 'reason' => $data['closure_notes'] ?? 'Solicitud cerrada por Almacén']);
+            AuditLog::create(['user_id' => $request->user()->id, 'action' => 'inventory.request.closed', 'subject_type' => InventoryRequest::class, 'subject_id' => $lockedRequest->id, 'before' => ['status' => 'pending'], 'after' => ['status' => 'closed', 'items' => $lockedRequest->items->map(fn ($item): array => ['item_id' => $item->id, 'requested' => (float) $item->requested_quantity, 'requested_units' => $item->requested_units, 'delivered' => (float) $item->delivered_quantity, 'delivered_units' => $item->delivered_units])->all()], 'reason' => $data['closure_notes'] ?? 'Solicitud cerrada por Almacén']);
         });
 
         return redirect()->route('inventory.requests.index')->with('success', "Solicitud {$inventoryRequest->code} cerrada y registrada en la bitácora.");

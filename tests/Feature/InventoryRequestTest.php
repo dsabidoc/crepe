@@ -70,4 +70,31 @@ class InventoryRequestTest extends TestCase
             ->get(route('inventory.requests.create', ['location' => 'REC']))
             ->assertForbidden();
     }
+
+    public function test_inventory_requests_use_product_units_and_convert_to_base_stock_on_delivery(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $colorBar = User::factory()->create();
+        $colorBar->assignRole('Color Bar');
+        $warehouse = User::factory()->create();
+        $warehouse->assignRole('Almacén');
+        $variant = ProductVariant::query()->where('sku', 'KOL-71-STD')->firstOrFail();
+
+        $this->actingAs($colorBar)->withSession(['crepe.mode' => 'color-bar'])->post(route('inventory.requests.store'), [
+            'location' => 'CB',
+            'items' => [$variant->id => ['product_variant_id' => $variant->id, 'requested_units' => 1]],
+        ])->assertRedirect();
+
+        $inventoryRequest = InventoryRequest::query()->with('items')->firstOrFail();
+        $item = $inventoryRequest->items->firstOrFail();
+        $this->assertSame(1, $item->requested_units);
+        $this->assertSame(1000.0, (float) $item->requested_quantity);
+
+        $this->actingAs($warehouse)->withSession(['crepe.mode' => 'almacen'])->post(route('inventory.requests.close', $inventoryRequest), [
+            'items' => [$item->id => 1],
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('inventory_request_items', ['id' => $item->id, 'delivered_units' => 1, 'delivered_quantity' => 1000]);
+        $this->assertSame(4000.0, (float) InventoryBalance::query()->where('product_variant_id', $variant->id)->whereHas('location', fn ($query) => $query->where('code', 'ALM'))->value('available_quantity'));
+    }
 }

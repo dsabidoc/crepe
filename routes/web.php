@@ -91,6 +91,7 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('/finanzas/cuentas/{financeAccount}', [FinanceController::class, 'destroyAccount'])->middleware('can:finance.manage')->name('finance.accounts.destroy');
     Route::post('/finanzas/catalogos/categorias', [FinanceController::class, 'storeCategory'])->middleware('can:finance.manage')->name('finance.categories.store');
     Route::get('/finanzas/cxp', [PayableInvoiceController::class, 'index'])->middleware('can:finance.view')->name('payables.index');
+    Route::get('/finanzas/cxp/{payableInvoice}', [PayableInvoiceController::class, 'show'])->middleware('can:finance.view')->name('payables.show');
     Route::post('/finanzas/cxp/{payableInvoice}/abonos', [PayableInvoiceController::class, 'storePayment'])->middleware('can:finance.manage')->name('payables.payments.store');
     Route::get('/nomina', [PayrollController::class, 'index'])->middleware('can:finance.view')->name('payroll.index');
     Route::post('/nomina', [PayrollController::class, 'store'])->middleware('can:finance.manage')->name('payroll.store');

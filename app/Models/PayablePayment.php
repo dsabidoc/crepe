@@ -12,7 +12,7 @@ class PayablePayment extends Model
     /** @use HasFactory<PayablePaymentFactory> */
     use HasFactory;
 
-    protected $fillable = ['payable_invoice_id', 'finance_account_id', 'amount', 'paid_on', 'reference', 'notes', 'created_by'];
+    protected $fillable = ['payable_invoice_id', 'finance_account_id', 'amount', 'paid_on', 'reference', 'notes', 'evidence_path', 'created_by'];
 
     protected function casts(): array
     {

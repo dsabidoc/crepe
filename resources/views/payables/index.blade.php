@@ -10,7 +10,7 @@
                         <h2>{{ $invoice->purchaseOrder->supplier->name }}</h2>
                         <p><a href="{{ route('purchase-orders.show', $invoice->purchaseOrder) }}">{{ $invoice->purchaseOrder->code }}</a> · recibida {{ $invoice->purchaseOrder->received_at?->format('d/m/Y') ?? '—' }} · vence {{ $invoice->due_on->format('d/m/Y') }}</p>
                     </div>
-                    <span class="status-badge">{{ $invoice->status === 'paid' ? 'Pagada' : ($invoice->status === 'partial' ? 'Abono parcial' : 'Pendiente') }}</span>
+                    <div class="payable-item-actions"><span class="status-badge">{{ $invoice->status === 'paid' ? 'Pagada' : ($invoice->status === 'partial' ? 'Abono parcial' : 'Pendiente') }}</span><a class="button button-secondary" href="{{ route('payables.show', $invoice) }}">Ver detalle</a></div>
                 </header>
                 <div class="payable-invoice-meta">
                     <span>Factura: <strong>{{ $invoice->invoice_reference ?: 'Sin folio' }}</strong></span>

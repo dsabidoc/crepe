@@ -10,6 +10,8 @@ use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\CrepeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PayablesWorkflowTest extends TestCase
@@ -38,6 +40,32 @@ class PayablesWorkflowTest extends TestCase
         $reception->assignRole('Recepción');
 
         $this->actingAs($reception)->get(route('payables.index'))->assertForbidden();
+    }
+
+    public function test_administrator_can_view_payable_detail_and_record_payment_evidence(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $supplier = Supplier::query()->create(['name' => 'Proveedor con comprobantes']);
+        $order = PurchaseOrder::query()->create(['code' => 'OC-CXP-DETALLE', 'supplier_id' => $supplier->id]);
+        $invoice = PayableInvoice::query()->create(['purchase_order_id' => $order->id, 'invoice_reference' => 'FAC-100', 'amount' => 1000, 'due_on' => now()->addDays(30)]);
+        $account = FinanceAccount::query()->where('name', 'C-Efectivo')->firstOrFail();
+        Storage::fake('public');
+
+        $this->actingAs($administrator)->get(route('payables.show', $invoice))->assertSee('FAC-100')->assertSee('Registrar abono');
+
+        $this->actingAs($administrator)->post(route('payables.payments.store', $invoice), [
+            'finance_account_id' => $account->id,
+            'amount' => 400,
+            'paid_on' => now()->toDateString(),
+            'reference' => 'TR-100',
+            'evidence' => UploadedFile::fake()->create('comprobante.pdf', 20, 'application/pdf'),
+        ])->assertRedirect(route('payables.show', $invoice));
+
+        $payment = $invoice->payments()->firstOrFail();
+        $this->assertSame('partial', $invoice->fresh()->status);
+        $this->assertNotNull($payment->evidence_path);
+        Storage::disk('public')->assertExists($payment->evidence_path);
     }
 
     public function test_administrator_can_manage_purchase_order_items_and_download_the_order(): void
