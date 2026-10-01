@@ -1,4 +1,5 @@
 <x-layouts.app title="Detalle de nómina">
+    <div class="payroll-page">
     <section class="page-heading payroll-page-heading">
         <div>
             <p class="eyebrow">NÓMINA {{ str_pad((string) $payrollRun->payroll_number, 2, '0', STR_PAD_LEFT) }}</p>
@@ -8,7 +9,7 @@
         <a class="button button-secondary" href="{{ route('payroll.index') }}">Volver a nómina</a>
     </section>
 
-    <section class="metric-grid">
+    <section class="metric-grid payroll-metrics">
         <article class="metric-card"><span>TOTAL DE NÓMINA</span><strong>${{ number_format($payrollTotal, 2) }}</strong><small class="neutral">Monto neto tras descuentos</small></article>
         <article class="metric-card"><span>RETIRADO</span><strong class="negative">${{ number_format($withdrawnTotal, 2) }}</strong><small class="neutral">{{ $withdrawals->count() }} {{ $withdrawals->count() === 1 ? 'retiro registrado' : 'retiros registrados' }}</small></article>
         <article class="metric-card"><span>PENDIENTE DE RETIRAR</span><strong class="{{ $withdrawalRemaining > 0 ? 'positive' : 'neutral' }}">${{ number_format($withdrawalRemaining, 2) }}</strong><small class="neutral">Puede dividirse entre efectivo y banco</small></article>
@@ -25,7 +26,7 @@
         @if($withdrawalRemaining > 0)
             <form method="POST" action="{{ route('payroll.withdrawals.store', $payrollRun) }}" class="payroll-withdrawal-form" enctype="multipart/form-data">
                 @csrf
-                <label><span>Cuenta de origen</span><select name="finance_account_id" required><option value="">Selecciona una cuenta</option>@foreach($accounts as $account)<option value="{{ $account->id }}">{{ $account->name }}</option>@endforeach</select></label>
+                <label><span>Cuenta de origen</span><select data-native-select="true" name="finance_account_id" required><option value="">Selecciona una cuenta</option>@foreach($accounts as $account)<option value="{{ $account->id }}">{{ $account->name }}</option>@endforeach</select></label>
                 <label><span>Monto a retirar</span><input name="amount" type="number" step=".01" min=".01" max="{{ number_format($withdrawalRemaining, 2, '.', '') }}" value="{{ number_format($withdrawalRemaining, 2, '.', '') }}" required></label>
                 <label><span>Fecha</span><input name="occurred_on" type="date" value="{{ now()->toDateString() }}" required></label>
                 <label><span>Referencia <small>Opcional</small></span><input name="reference" maxlength="120" placeholder="Ej. transferencia de nómina"></label>
@@ -66,12 +67,12 @@
         </div>
     </section>
 
-    <dialog class="payroll-discount-dialog" id="payroll-discount-dialog">
+    <dialog class="payroll-discount-dialog" id="payroll-discount-dialog" aria-labelledby="payroll-discount-title">
         <form method="POST" action="{{ route('payroll.discounts.update', $payrollRun) }}" id="payroll-discount-form">
             @csrf @method('PUT')
-            <header><div><p class="eyebrow">DESCUENTOS</p><h2>Agregar descuento</h2><p>Selecciona la colaboradora y captura el importe que se descontará.</p></div><button class="dialog-close" type="button" data-close-discount aria-label="Cerrar">×</button></header>
-            <label><span>Colaboradora</span><select name="payroll_item_id" id="discount-employee" required>@foreach($payrollRun->items as $item)<option value="{{ $item->id }}">{{ $item->employee_name_snapshot }}</option>@endforeach</select></label>
-            <label><span>Tipo de descuento</span><select name="discount_type" id="discount-type" required><option value="infonavit_deduction">Infonavit</option><option value="other_deductions">Otros descuentos</option><option value="tardiness_deduction">Retardos</option></select></label>
+            <header><div><p class="eyebrow">DESCUENTOS</p><h2 id="payroll-discount-title">Agregar descuento</h2><p>Selecciona la colaboradora y captura el importe que se descontará.</p></div><button class="dialog-close" type="button" data-close-discount aria-label="Cerrar">×</button></header>
+            <label><span>Colaboradora</span><select data-native-select="true" name="payroll_item_id" id="discount-employee" required>@foreach($payrollRun->items as $item)<option value="{{ $item->id }}">{{ $item->employee_name_snapshot }}</option>@endforeach</select></label>
+            <label><span>Tipo de descuento</span><select data-native-select="true" name="discount_type" id="discount-type" required><option value="infonavit_deduction">Infonavit</option><option value="other_deductions">Otros descuentos</option><option value="tardiness_deduction">Retardos</option></select></label>
             <label><span>Monto</span><input name="amount" id="discount-amount" type="number" min="0" step=".01" value="0.00" required></label>
             <footer><button class="button button-secondary" type="button" data-close-discount>Cancelar</button><button class="button button-primary" type="submit">Guardar descuento</button></footer>
         </form>
@@ -94,4 +95,5 @@
             dialog?.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
         })();
     </script>
+    </div>
 </x-layouts.app>

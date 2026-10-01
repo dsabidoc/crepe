@@ -411,45 +411,6 @@
     .team-filter-bar,.cash-filter-bar { padding:11px; }
 }
 
-/* Payroll detail: spacious forms, responsive two-column employee cards and discount dialog. */
-.payroll-withdrawal-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:end; }
-.payroll-withdrawal-form label { display:grid; gap:7px; min-width:0; color:var(--ink); font-size:13px; font-weight:600; }
-.payroll-withdrawal-form label small { color:var(--muted); font-weight:400; }
-.payroll-withdrawal-form input, .payroll-withdrawal-form select { width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); font:inherit; }
-.payroll-withdrawal-form .button { width:max-content; min-width:150px; }
-.payroll-evidence { grid-column:1 / -1; }
-.payroll-evidence input[type=file] { padding:8px 10px; }
-.payroll-items-section { display:grid; gap:16px; margin-top:24px; }
-.payroll-items-heading { display:flex; justify-content:space-between; align-items:end; gap:18px; padding:0 2px; }
-.payroll-items-heading h2 { margin:0; font-size:20px; }
-.payroll-items-heading p:not(.eyebrow) { margin:5px 0 0; color:var(--muted); font-size:13px; }
-.payroll-items-heading .button { flex:0 0 auto; width:max-content; }
-.payroll-items { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
-.payroll-item { min-width:0; }
-.payroll-item header .button { width:max-content; flex:0 0 auto; }
-.payroll-discounts-summary { display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px; padding-top:2px; color:var(--muted); font-size:12px; }
-.payroll-discounts-summary span { display:inline-flex; gap:5px; }
-.payroll-discounts-summary strong { color:var(--ink); }
-.payroll-discount-edit { margin-left:auto; width:max-content; }
-.payroll-discount-dialog { width:min(480px,calc(100vw - 32px)); max-width:100%; padding:0; border:0; border-radius:16px; box-shadow:0 24px 80px rgba(34,43,66,.22); color:var(--ink); }
-.payroll-discount-dialog::backdrop { background:rgba(27,35,51,.48); backdrop-filter:blur(2px); }
-.payroll-discount-dialog form { display:grid; gap:16px; padding:24px; }
-.payroll-discount-dialog header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
-.payroll-discount-dialog header h2 { margin:0; font-size:20px; }
-.payroll-discount-dialog header p:not(.eyebrow) { margin:5px 0 0; color:var(--muted); font-size:13px; line-height:1.45; }
-.payroll-discount-dialog label { display:grid; gap:7px; color:var(--ink); font-size:13px; font-weight:600; }
-.payroll-discount-dialog input, .payroll-discount-dialog select { width:100%; min-height:44px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--ink); font:inherit; }
-.payroll-discount-dialog footer { display:flex; justify-content:flex-end; gap:10px; padding-top:4px; }
-.payroll-discount-dialog footer .button { width:max-content; }
-.payroll-discount-dialog .dialog-close { width:34px; height:34px; padding:0; border:1px solid var(--line); border-radius:50%; background:#fff; color:var(--muted); font-size:22px; line-height:1; }
-@media (max-width:900px) { .payroll-items { grid-template-columns:1fr; } }
-@media (max-width:640px) {
-    .payroll-withdrawal-form { grid-template-columns:1fr; }
-    .payroll-evidence { grid-column:auto; }
-    .payroll-items-heading { align-items:stretch; flex-direction:column; }
-    .payroll-items-heading .button { align-self:flex-start; }
-    .payroll-discount-edit { margin-left:0; }
-}
 
 /* Select visual unificado: botón tipo picker con menú claro y opciones marcables. */
 .select-picker { position:relative; display:block; width:100%; min-width:0; }
@@ -1311,4 +1272,122 @@ dialog textarea {
     .services-list-controls .filter-clear { justify-self:start; }
     .stylist-dialog > form > header,
     .stylist-dialog > form > footer { padding-left:18px; padding-right:18px; }
+}
+
+/* Nómina: controles y superficies acotados al módulo. */
+.payroll-page { display:grid; gap:24px; min-width:0; }
+.payroll-page .page-heading,
+.payroll-page .payroll-create,
+.payroll-page .payroll-item,
+.payroll-page .payroll-withdrawal-card { margin:0; }
+.payroll-page .page-heading h1 { font-size:clamp(24px,2.4vw,30px); }
+.payroll-page .button { min-height:44px; padding:10px 18px; gap:8px; line-height:1.4; }
+.payroll-page .payroll-create,
+.payroll-page .payroll-item,
+.payroll-page .payroll-withdrawal-card { padding:24px; }
+.payroll-page .payroll-create { grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr); gap:32px; }
+.payroll-page .payroll-create-form,
+.payroll-page .payroll-withdrawal-form { display:grid; gap:20px; min-width:0; }
+.payroll-page .payroll-withdrawal-form,
+.payroll-page .field-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.payroll-page form label:not(.switch-field) { display:grid; gap:8px; min-width:0; color:#4c586c; font-size:13px; font-weight:600; white-space:normal; }
+.payroll-page label > span { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; }
+.payroll-page label small { color:var(--muted); font-size:11px; font-weight:400; }
+.payroll-page form input:not([type=hidden]):not([type=checkbox]):not([type=file]),
+.payroll-page form select {
+    width:100%; min-width:0; height:48px; min-height:48px; margin:0; padding:0 14px;
+    border:1px solid #dfe3eb; border-radius:12px; background-color:#fff;
+    color:var(--ink); font:500 14px/1.4 var(--font-sans); outline:0;
+}
+.payroll-page form select {
+    appearance:none; padding-right:38px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2366758d' stroke-width='1.7'%3E%3Cpath d='m4 6 4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 14px center;
+}
+.payroll-page form input:focus-visible,
+.payroll-page form select:focus-visible,
+.payroll-page button:focus-visible,
+.payroll-page a:focus-visible { outline:3px solid #e6b6c5; outline-offset:3px; }
+.payroll-page .switch-field { grid-column:1 / -1; gap:10px!important; padding:12px 14px; min-height:48px; font-size:13px; }
+.payroll-page input[type=checkbox] { width:18px; height:18px; flex:0 0 auto; }
+.payroll-page .payroll-create-actions { display:flex; justify-content:flex-end; }
+.payroll-page .payroll-history { overflow:visible; }
+.payroll-page .list-controls-with-heading {
+    grid-template-columns:minmax(0,1fr) auto!important;
+    padding:24px!important; gap:20px!important; overflow:visible;
+}
+.payroll-page .list-controls-with-heading > .record-count { grid-column:2; grid-row:1; }
+.payroll-page .list-filter-bar {
+    grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr 1.3fr auto auto;
+    gap:16px; align-items:end; width:100%; min-width:0; overflow:visible; padding:0;
+}
+.payroll-page .table-row > strong { display:grid; gap:6px; padding:14px 0; }
+.payroll-page .table-row > strong small { font-size:12px; font-weight:400; color:var(--muted); line-height:1.5; }
+.payroll-page .empty-state { padding:24px; margin:0; }
+.payroll-page .payroll-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.payroll-page .payroll-withdrawal-card { display:grid; gap:24px; overflow:visible; }
+.payroll-page .payroll-withdrawal-card > header { padding:0; }
+.payroll-page .payroll-withdrawal-card > header h2 { font-size:18px; }
+.payroll-page .payroll-withdrawal-card > header p:not(.eyebrow) { font-size:13px; line-height:1.6; }
+.payroll-page .payroll-evidence { grid-column:1 / -1; }
+.payroll-page input[type=file] {
+    width:100%; min-width:0; padding:12px; border:1px dashed #ccd3df; border-radius:12px;
+    background:#fafbfc; color:var(--muted); font-size:13px; font-weight:400;
+}
+.payroll-page input[type=file]::file-selector-button { margin-right:12px; padding:9px 14px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); font:inherit; cursor:pointer; }
+.payroll-page .payroll-withdrawal-form > .button { justify-self:end; grid-column:1 / -1; }
+.payroll-page .payroll-withdrawal-history { margin:0; padding:16px; gap:10px; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+.payroll-page .payroll-withdrawal-history a { color:var(--blue); text-decoration:underline; }
+.payroll-page .payroll-items-section { display:grid; gap:20px; }
+.payroll-page .payroll-items-heading { display:flex; justify-content:space-between; align-items:center; gap:20px; }
+.payroll-page .payroll-items-heading h2 { margin:0; font-size:20px; }
+.payroll-page .payroll-items-heading p:not(.eyebrow) { margin:6px 0 0; color:var(--muted); font-size:13px; line-height:1.5; }
+.payroll-page .payroll-items { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:stretch; }
+.payroll-page .payroll-item { min-width:0; gap:20px; align-content:start; }
+.payroll-page .payroll-item > header { display:flex; flex-wrap:wrap; flex-direction:row; align-items:center; gap:12px; padding:0; }
+.payroll-page .payroll-item > header h2 { font-size:17px; line-height:1.4; overflow-wrap:anywhere; }
+.payroll-page .payroll-item > header p { font-size:12px; }
+.payroll-page .payroll-item > header .button { padding:9px 12px; font-size:12px; }
+.payroll-page .payroll-amounts { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.payroll-page .payroll-amounts > div { padding:14px; min-width:0; gap:6px; }
+.payroll-page .payroll-amounts span { line-height:1.4; }
+.payroll-page .payroll-amounts strong { font-size:20px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.payroll-page .payroll-discounts-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px 12px; padding-top:16px; border-top:1px solid var(--line); }
+.payroll-page .payroll-discounts-summary > span { display:grid; gap:5px; color:var(--muted); font-size:12px; line-height:1.4; }
+.payroll-page .payroll-discounts-summary strong { color:var(--ink); font-size:14px; }
+.payroll-page .payroll-discount-edit { grid-column:1 / -1; justify-self:end; }
+.payroll-page .payroll-discount-dialog {
+    position:fixed; inset:0; margin:auto; transform:none;
+    width:min(520px,calc(100vw - 32px)); max-width:calc(100vw - 32px);
+    max-height:calc(100dvh - 32px); padding:0; border:1px solid var(--line);
+    border-radius:18px; background:#fff; color:var(--ink); overflow:auto;
+    box-shadow:0 24px 70px rgba(17,24,39,.22);
+}
+.payroll-page .payroll-discount-dialog::backdrop { background:rgba(17,24,39,.4); backdrop-filter:blur(4px); }
+.payroll-page .payroll-discount-dialog > form { display:grid; gap:20px; padding:24px; }
+.payroll-page .payroll-discount-dialog header { display:grid; grid-template-columns:minmax(0,1fr) 36px; gap:16px; padding-bottom:20px; border-bottom:1px solid var(--line); }
+.payroll-page .payroll-discount-dialog header .eyebrow { margin:0 0 8px; }
+.payroll-page .payroll-discount-dialog header h2 { margin:0; font-size:22px; line-height:1.3; }
+.payroll-page .payroll-discount-dialog header p:not(.eyebrow) { margin:8px 0 0; color:var(--muted); font-size:13px; line-height:1.6; }
+.payroll-page .payroll-discount-dialog .dialog-close { display:grid; place-items:center; width:36px; height:36px; padding:0; border:1px solid var(--line); background:#fff; font-size:24px; line-height:1; }
+.payroll-page .payroll-discount-dialog footer { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:12px; border-top:1px solid var(--line); padding-top:20px; }
+@media (max-width:900px) {
+    .payroll-page .payroll-create { grid-template-columns:1fr; gap:24px; }
+    .payroll-page .list-filter-bar { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .payroll-page .payroll-items { grid-template-columns:1fr; }
+}
+@media (max-width:560px) {
+    .payroll-page { gap:20px; }
+    .payroll-page .payroll-create,
+    .payroll-page .payroll-item,
+    .payroll-page .payroll-withdrawal-card { padding:20px; }
+    .payroll-page .list-controls-with-heading { padding:20px!important; }
+    .payroll-page .payroll-withdrawal-form,
+    .payroll-page .field-grid,
+    .payroll-page .payroll-metrics,
+    .payroll-page .list-filter-bar { grid-template-columns:1fr; }
+    .payroll-page .payroll-items-heading { flex-direction:column; align-items:flex-start; }
+    .payroll-page .payroll-create-actions { justify-content:flex-start; }
+    .payroll-page .payroll-discount-dialog > form { padding:20px; gap:18px; }
+    .payroll-page .payroll-discount-dialog header h2 { font-size:20px; }
 }
