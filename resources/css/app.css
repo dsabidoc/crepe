@@ -1551,3 +1551,137 @@ dialog textarea {
     .payroll-page .payroll-discount-dialog > form { padding:20px; gap:18px; }
     .payroll-page .payroll-discount-dialog header h2 { font-size:20px; }
 }
+
+/* Patrón común de filtros: prioriza una fila compacta y legible en escritorio. */
+.app-body .list-filter-bar {
+    align-items:center;
+    gap:10px 12px;
+}
+.app-body .list-filter-bar .list-search {
+    flex:0 1 320px;
+    width:320px;
+    max-width:320px;
+    min-height:44px;
+    height:44px;
+}
+.app-body .list-filter-bar > :is(select,.select-picker) {
+    flex:0 1 190px;
+    width:190px;
+    max-width:190px;
+}
+.app-body .list-filter-bar > label:not(.list-search) {
+    flex:0 1 145px;
+    max-width:145px;
+}
+.app-body .list-filter-bar > .button,
+.app-body .list-filter-bar > .filter-clear {
+    flex:0 0 auto;
+    min-height:40px;
+}
+.app-body .list-filter-bar > .date-filter {
+    display:flex;
+    align-items:center;
+    gap:0;
+}
+.app-body .list-filter-bar > .date-filter > span,
+.app-body form[aria-label="Periodo del resumen"] > label > span,
+.app-body .activity-filter-grid label > span {
+    position:absolute;
+    width:1px;
+    height:1px;
+    margin:-1px;
+    padding:0;
+    overflow:hidden;
+    clip:rect(0, 0, 0, 0);
+    white-space:nowrap;
+    border:0;
+}
+.app-body .list-filter-bar > .date-filter input {
+    width:145px;
+}
+.app-body form[aria-label="Periodo del resumen"] > label {
+    display:flex;
+    align-items:center;
+    gap:0;
+    flex:0 1 145px;
+    max-width:145px;
+}
+.app-body form[aria-label="Periodo del resumen"] > label input {
+    width:145px;
+}
+
+/* Bitácoras comparte la misma densidad, sin perder el orden semántico de sus campos. */
+.app-body .activity-filters { padding:16px 20px; }
+.app-body .activity-filter-grid {
+    grid-template-columns:minmax(220px,320px) minmax(175px,190px) 145px 145px auto auto;
+    align-items:center;
+    gap:12px;
+}
+.app-body .activity-filter-grid label {
+    position:relative;
+    display:block;
+    min-width:0;
+}
+.app-body .activity-filter-grid input,
+.app-body .activity-filter-grid select {
+    min-height:44px;
+    height:44px;
+    padding:0 12px;
+    border-radius:12px;
+    font-size:13px;
+}
+.app-body .activity-filter-grid .button,
+.app-body .activity-clear {
+    min-height:40px;
+    font-size:13px;
+}
+
+/* Los filtros especializados mantienen su composición, con las mismas medidas base. */
+.app-body .services-list-controls .list-filter-bar {
+    grid-template-columns:minmax(220px,320px) minmax(130px,160px) minmax(165px,190px) auto auto;
+}
+.app-body .services-list-controls .list-search {
+    width:100%;
+    max-width:none;
+}
+.app-body .payroll-page .list-filter-bar > label:not(.list-search) {
+    max-width:none;
+}
+
+@media (max-width:1100px) {
+    .app-body .list-filter-bar .list-search {
+        flex:1 1 280px;
+        width:auto;
+        max-width:none;
+    }
+    .app-body .list-filter-bar > :is(select,.select-picker) {
+        flex:1 1 160px;
+        width:auto;
+        max-width:none;
+    }
+    .app-body .activity-filter-grid {
+        grid-template-columns:minmax(220px,1.5fr) repeat(2,minmax(145px,1fr)) auto auto;
+    }
+    .app-body .activity-filter-grid label:first-child { grid-column:1 / -1; }
+}
+
+@media (max-width:760px) {
+    .app-body .list-filter-bar > .date-filter,
+    .app-body form[aria-label="Periodo del resumen"] > label {
+        flex:1 1 140px;
+        max-width:none;
+    }
+    .app-body .list-filter-bar > .date-filter input,
+    .app-body form[aria-label="Periodo del resumen"] > label input { width:100%; }
+    .app-body .activity-filter-grid {
+        grid-template-columns:repeat(2,minmax(0,1fr));
+    }
+    .app-body .activity-filter-grid label:first-child { grid-column:1 / -1; }
+}
+
+@media (max-width:480px) {
+    .app-body .list-filter-bar > .date-filter,
+    .app-body form[aria-label="Periodo del resumen"] > label { flex-basis:100%; }
+    .app-body .activity-filter-grid { grid-template-columns:1fr; }
+    .app-body .activity-filter-grid label:first-child { grid-column:auto; }
+}
