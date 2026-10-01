@@ -1,6 +1,6 @@
 <x-layouts.app title="Detalle de nómina">
     <section class="page-heading">
-        <div><p class="eyebrow">NÓMINA GENERADA</p><h1>{{ $payrollRun->period_starts_on->translatedFormat('d M Y') }} — {{ $payrollRun->period_ends_on->translatedFormat('d M Y') }}</h1><p>{{ $payrollRun->items->count() }} personas · {{ $payrollRun->includes_product_commissions ? 'Incluye' : 'No incluye' }} comisión de productos.</p></div>
+        <div><p class="eyebrow">NÓMINA {{ str_pad((string) $payrollRun->payroll_number, 2, '0', STR_PAD_LEFT) }}</p><h1>{{ $payrollRun->period_starts_on->translatedFormat('d M Y') }} — {{ $payrollRun->period_ends_on->translatedFormat('d M Y') }}</h1><p>{{ $payrollRun->items->count() }} personas · {{ $payrollRun->includes_product_commissions ? 'Incluye' : 'No incluye' }} comisión de productos.</p></div>
         <a class="button button-secondary" href="{{ route('payroll.index') }}">Volver a nómina</a>
     </section>
 

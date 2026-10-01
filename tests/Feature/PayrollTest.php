@@ -34,11 +34,16 @@ class PayrollTest extends TestCase
         $payrollRun = PayrollRun::query()->latest('id')->firstOrFail();
         $payrollItem = PayrollItem::query()->whereBelongsTo($payrollRun)->whereBelongsTo($employee)->firstOrFail();
         $this->assertSame('1360.00', $payrollItem->total);
+        $this->assertSame(1, $payrollRun->payroll_number);
         $this->assertDatabaseHas('commission_entries', ['id' => $commission->id, 'payroll_item_id' => $payrollItem->id, 'status' => 'settled']);
 
         $this->actingAs($administrator)->put(route('payroll.items.update', [$payrollRun, $payrollItem]), ['infonavit_deduction' => 50, 'other_deductions' => 25, 'tardiness_deduction' => 10])->assertRedirect();
         $this->assertSame('1275.00', $payrollItem->fresh()->total);
-        $this->actingAs($administrator)->get(route('payroll.items.receipt', [$payrollRun, $payrollItem]))->assertOk()->assertHeader('content-type', 'application/pdf')->assertHeader('content-disposition');
+        $receipt = $this->actingAs($administrator)->get(route('payroll.items.receipt', [$payrollRun, $payrollItem]));
+        $receipt->assertOk()->assertHeader('content-type', 'application/pdf')->assertHeader('content-disposition');
+        $this->assertStringContainsString('recibo-nomina-01-ana-torres-'.$payrollRun->period_ends_on->format('Ymd').'.pdf', (string) $receipt->headers->get('content-disposition'));
+        $this->assertStringContainsString('NOMINA 01', $receipt->getContent());
+        $this->assertStringContainsString('Periodo:', $receipt->getContent());
 
         $this->actingAs($administrator)->from(route('payroll.index'))->post(route('payroll.store'), [
             'period_starts_on' => now()->startOfWeek()->toDateString(),

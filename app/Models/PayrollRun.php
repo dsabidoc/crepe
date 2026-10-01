@@ -13,11 +13,11 @@ class PayrollRun extends Model
     /** @use HasFactory<PayrollRunFactory> */
     use HasFactory;
 
-    protected $fillable = ['period_starts_on', 'period_ends_on', 'includes_product_commissions', 'status', 'generated_by'];
+    protected $fillable = ['period_starts_on', 'period_ends_on', 'payroll_year', 'payroll_number', 'includes_product_commissions', 'status', 'generated_by'];
 
     protected function casts(): array
     {
-        return ['period_starts_on' => 'date', 'period_ends_on' => 'date', 'includes_product_commissions' => 'boolean'];
+        return ['period_starts_on' => 'date', 'period_ends_on' => 'date', 'payroll_year' => 'integer', 'payroll_number' => 'integer', 'includes_product_commissions' => 'boolean'];
     }
 
     public function generatedBy(): BelongsTo

@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -52,7 +53,9 @@ class PayrollController extends Controller
             ]);
         }
         $payrollRun = DB::transaction(function () use ($data, $request): PayrollRun {
-            $payrollRun = PayrollRun::query()->create([...$data, 'includes_product_commissions' => (bool) ($data['includes_product_commissions'] ?? false), 'generated_by' => $request->user()->id]);
+            $payrollYear = Carbon::parse($data['period_ends_on'])->year;
+            $payrollNumber = ((int) PayrollRun::query()->where('payroll_year', $payrollYear)->lockForUpdate()->max('payroll_number')) + 1;
+            $payrollRun = PayrollRun::query()->create([...$data, 'payroll_year' => $payrollYear, 'payroll_number' => $payrollNumber, 'includes_product_commissions' => (bool) ($data['includes_product_commissions'] ?? false), 'generated_by' => $request->user()->id]);
             $employees = Employee::query()->where('status', 'active')->where(fn ($query) => $query->whereNotNull('salary')->orWhereNotNull('commission_rate'))->orderBy('first_name')->orderBy('last_name')->get();
 
             foreach ($employees as $employee) {
@@ -140,7 +143,7 @@ class PayrollController extends Controller
     public function downloadReceipt(PayrollRun $payrollRun, PayrollItem $payrollItem, PayrollReceiptPdfService $receipts): Response
     {
         abort_unless($payrollItem->payroll_run_id === $payrollRun->id, 404);
-        $filename = 'recibo-nomina-'.str($payrollItem->employee_name_snapshot)->slug().'-'.$payrollRun->period_ends_on->format('Ymd').'.pdf';
+        $filename = 'recibo-nomina-'.str_pad((string) $payrollRun->payroll_number, 2, '0', STR_PAD_LEFT).'-'.str($payrollItem->employee_name_snapshot)->slug().'-'.$payrollRun->period_ends_on->format('Ymd').'.pdf';
 
         return response($receipts->render($payrollItem), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'attachment; filename="'.$filename.'"']);
     }
