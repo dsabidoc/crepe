@@ -37,8 +37,12 @@ class AdministrativeSmokeTest extends TestCase
         $this->actingAs($administrator)->withSession(['crepe.mode' => 'finanzas'])->get(route('payables.index'))->assertOk();
         $this->actingAs($administrator)->withSession(['crepe.mode' => 'finanzas'])->get(route('payroll.index'))->assertOk();
         $this->actingAs($administrator)->withSession(['crepe.mode' => 'almacen'])->get(route('purchase-orders.index'))->assertOk();
+        $this->actingAs($administrator)->withSession(['crepe.mode' => 'almacen'])->get(route('purchase-orders.create'))->assertOk();
         $this->actingAs($administrator)->withSession(['crepe.mode' => 'administracion'])->get(route('settings.edit'))->assertOk();
         $this->actingAs($administrator)->withSession(['crepe.mode' => 'almacen'])->get(route('products.index'))->assertOk();
+
+        $this->actingAs($administrator)->post(route('products.categories.store'), ['name' => 'Categoría de prueba', 'color' => '#B95070'])->assertRedirect();
+        $this->assertDatabaseHas('product_categories', ['name' => 'Categoría de prueba']);
 
     }
 

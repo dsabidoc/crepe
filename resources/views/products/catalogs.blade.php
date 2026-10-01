@@ -1,6 +1,6 @@
 <x-layouts.app title="Catálogos de productos">
     <section class="page-title">
-        <div><p class="eyebrow">ALMACÉN · CATÁLOGOS</p><h1>Marcas y proveedores</h1><p>Administra los datos que se podrán asignar a los productos y usar en las órdenes de compra.</p></div>
+        <div><p class="eyebrow">ALMACÉN · CATÁLOGOS</p><h1>Catálogos de productos</h1><p>Administra los datos que se podrán asignar a los productos y usar en las órdenes de compra.</p></div>
         <a class="button button-secondary" href="{{ route('products.index') }}">Volver a productos</a>
     </section>
 
@@ -16,6 +16,22 @@
                     <div><span><strong>{{ $brand->name }}</strong><small>{{ $brand->products_count }} {{ $brand->products_count === 1 ? 'producto' : 'productos' }}</small></span><span class="status-badge">{{ $brand->is_active ? 'Activa' : 'Inactiva' }}</span></div>
                 @empty
                     <p class="empty-state">Aún no hay marcas registradas.</p>
+                @endforelse
+            </div>
+        </article>
+
+        <article class="surface form-section">
+            <header><div><p class="eyebrow">CATEGORÍAS</p><h2>Catálogo de categorías</h2><p>Organiza productos para encontrarlos y filtrarlos con facilidad.</p></div></header>
+            <form method="POST" action="{{ route('products.categories.store') }}" class="catalog-quick-form catalog-category-form">@csrf
+                <label><span>Nueva categoría</span><input name="name" maxlength="120" required placeholder="Ej. Coloración"></label>
+                <label><span>Color</span><input name="color" type="color" value="#B95070" aria-label="Color de la categoría"></label>
+                <button class="button button-primary" type="submit">Agregar categoría</button>
+            </form>
+            <div class="catalog-record-list">
+                @forelse($categories as $category)
+                    <div><span><strong><i class="category-dot" style="background: {{ $category->color }}"></i>{{ $category->name }}</strong><small>{{ $category->products_count }} {{ $category->products_count === 1 ? 'producto' : 'productos' }}</small></span><span class="status-badge">Activa</span></div>
+                @empty
+                    <p class="empty-state">Aún no hay categorías registradas.</p>
                 @endforelse
             </div>
         </article>

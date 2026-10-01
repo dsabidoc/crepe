@@ -56,6 +56,7 @@ class PayablesWorkflowTest extends TestCase
         ])->assertRedirect();
 
         $order = PurchaseOrder::query()->whereBelongsTo($supplier)->firstOrFail();
+        $this->assertSame('ODC-01', $order->code);
         $firstItem = $order->items()->where('product_variant_id', $variants[0]->id)->firstOrFail();
 
         $this->put(route('purchase-orders.items.update', [$order, $firstItem]), ['ordered_quantity' => 6])->assertRedirect();

@@ -49,6 +49,7 @@ class ProductController extends Controller
     {
         return view('products.catalogs', [
             'brands' => ProductBrand::query()->withCount('products')->orderBy('name')->get(),
+            'categories' => ProductCategory::query()->withCount('products')->orderBy('name')->get(),
             'suppliers' => Supplier::query()->withCount('purchaseOrders')->orderBy('name')->get(),
         ]);
     }
@@ -62,6 +63,21 @@ class ProductController extends Controller
         ProductBrand::query()->create([...$data, 'is_active' => true]);
 
         return back()->with('success', 'Marca agregada al catálogo.');
+    }
+
+    public function storeCategory(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120', 'unique:product_categories,name'],
+            'color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+        ]);
+
+        ProductCategory::query()->create([
+            'name' => $data['name'],
+            'color' => $data['color'] ?? '#B95070',
+        ]);
+
+        return back()->with('success', 'Categoría agregada al catálogo.');
     }
 
     public function store(Request $request): RedirectResponse

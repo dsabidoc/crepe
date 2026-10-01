@@ -866,6 +866,7 @@ dialog::backdrop { background:rgba(17,24,39,.38); backdrop-filter:blur(4px); }
 .finance-account-today strong { font-size:13px; }
 .catalog-quick-form,.catalog-supplier-form { display:grid; gap:12px; padding:18px 0; border-bottom:1px solid var(--line); }
 .catalog-quick-form { grid-template-columns:minmax(0,1fr) auto; align-items:end; }
+.catalog-category-form { grid-template-columns:minmax(0,1fr) 90px auto; }
 .catalog-supplier-form { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .catalog-quick-form label,.catalog-supplier-form label { display:grid; gap:7px; color:#4c586c; font-size:11px; font-weight:750; }
 .catalog-quick-form input,.catalog-supplier-form input { width:100%; min-height:44px; border:1px solid var(--line); border-radius:10px; padding:0 12px; color:var(--ink); background:#fff; font:inherit; outline:0; }
@@ -875,6 +876,14 @@ dialog::backdrop { background:rgba(17,24,39,.38); backdrop-filter:blur(4px); }
 .catalog-record-list>div { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:56px; border:1px solid #edf0f5; border-radius:10px; padding:10px 12px; background:#fff; }
 .catalog-record-list>div>span:first-child { display:grid; gap:3px; min-width:0; }
 .catalog-record-list small { color:#8994a5; font-size:11px; }
+.catalog-record-list strong { display:flex; align-items:center; gap:7px; }
+.catalog-category-form input[type=color] { width:90px; min-height:44px; padding:4px; }
+.purchase-order-create-section { max-width:980px; margin:0 auto; }
+.purchase-order-create-section form { display:grid; gap:24px; }
+.purchase-order-lines { display:grid; gap:12px; padding:18px; border:1px solid var(--line); border-radius:14px; background:#fbfcfe; }
+.purchase-order-line { display:grid; grid-template-columns:minmax(0,1fr) 150px 44px; gap:14px; align-items:end; }
+.purchase-order-line label { display:grid; gap:8px; min-width:0; color:#4c586c; font-size:13px; font-weight:600; }
+.purchase-order-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:12px; }
 .payable-invoice-meta { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; padding:0 0 16px; color:#758196; font-size:12px; }
 .payable-invoice-meta a { color:var(--blue); font-weight:700; }
 .payable-payment-history { display:grid; gap:5px; margin-top:16px; border-radius:10px; padding:12px; color:#66758d; background:#fafbfc; font-size:11px; }
@@ -1684,4 +1693,55 @@ dialog textarea {
     .app-body form[aria-label="Periodo del resumen"] > label { flex-basis:100%; }
     .app-body .activity-filter-grid { grid-template-columns:1fr; }
     .app-body .activity-filter-grid label:first-child { grid-column:auto; }
+}
+
+/* Ajustes puntuales de Almacén, Equipo y Color Bar. */
+.app-body .team-filter-bar {
+    background:transparent;
+    border-color:transparent;
+    box-shadow:none;
+    padding-left:0;
+    padding-right:0;
+}
+.app-body .color-ticket-selector .color-ticket-filter {
+    margin-top:4px;
+    padding:0 20px 20px;
+    border-top:0;
+    border-bottom:0;
+}
+.app-body .color-product-browser .product-search {
+    min-height:44px;
+    height:44px;
+    margin:0 20px 16px;
+    padding:0 12px;
+    border-radius:12px;
+    background:#fff;
+}
+.app-body .color-product-browser .product-search input {
+    height:42px;
+    min-height:0;
+    padding:0;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    box-shadow:none;
+}
+.app-body .color-product-card > b {
+    align-self:center;
+    justify-self:center;
+    place-items:center;
+}
+.app-body .purchase-order-create-section .purchase-order-remove {
+    width:44px;
+    min-width:44px;
+    padding:0;
+}
+@media (max-width:760px) {
+    .app-body .catalog-category-form,
+    .app-body .purchase-order-line { grid-template-columns:1fr; }
+    .app-body .catalog-category-form .button { width:100%; }
+    .app-body .catalog-category-form input[type=color] { width:100%; }
+    .app-body .purchase-order-line .purchase-order-remove { justify-self:start; }
+    .app-body .color-ticket-selector .color-ticket-filter { padding:0 16px 18px; }
+    .app-body .color-product-browser .product-search { margin-left:16px; margin-right:16px; }
 }

@@ -55,9 +55,16 @@ class PurchaseOrderController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(): View
     {
-        //
+        return view('purchase-orders.create', [
+            'suppliers' => Supplier::query()->where('is_active', true)->orderBy('name')->get(),
+            'variants' => ProductVariant::query()
+                ->with('product')
+                ->whereHas('product', fn ($query) => $query->where('status', 'active'))
+                ->orderBy('name')
+                ->get(),
+        ]);
     }
 
     /**
@@ -68,7 +75,7 @@ class PurchaseOrderController extends Controller
         $data = $request->validate(['supplier_id' => ['required', Rule::exists('suppliers', 'id')->where('is_active', true)], 'notes' => ['nullable', 'string', 'max:1000'], 'items' => ['required', 'array', 'min:1'], 'items.*.product_variant_id' => ['required', 'distinct', Rule::exists('product_variants', 'id')], 'items.*.ordered_quantity' => ['required', 'numeric', 'min:.001']]);
         $order = DB::transaction(function () use ($data): PurchaseOrder {
             $order = PurchaseOrder::query()->create(['code' => 'OC-TEMP-'.str()->uuid(), 'supplier_id' => $data['supplier_id'], 'notes' => $data['notes'] ?? null]);
-            $order->update(['code' => 'OC-'.str_pad((string) $order->id, 6, '0', STR_PAD_LEFT)]);
+            $order->update(['code' => 'ODC-'.str_pad((string) $order->id, 2, '0', STR_PAD_LEFT)]);
             $variants = ProductVariant::query()->whereIn('id', collect($data['items'])->pluck('product_variant_id'))->get()->keyBy('id');
             foreach ($data['items'] as $item) {
                 $variant = $variants[$item['product_variant_id']];

@@ -68,6 +68,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/inventario/solicitudes/{inventoryRequest}/procesar', [InventoryRequestController::class, 'edit'])->middleware('can:inventory.requests.manage')->name('inventory.requests.edit');
     Route::post('/inventario/solicitudes/{inventoryRequest}/cerrar', [InventoryRequestController::class, 'close'])->middleware('can:inventory.requests.manage')->name('inventory.requests.close');
     Route::get('/ordenes-compra', [PurchaseOrderController::class, 'index'])->middleware('can:inventory.requests.manage')->name('purchase-orders.index');
+    Route::get('/ordenes-compra/nueva', [PurchaseOrderController::class, 'create'])->middleware('can:inventory.requests.manage')->name('purchase-orders.create');
     Route::post('/ordenes-compra/proveedores', [PurchaseOrderController::class, 'storeSupplier'])->middleware('can:inventory.requests.manage')->name('suppliers.store');
     Route::post('/ordenes-compra', [PurchaseOrderController::class, 'store'])->middleware('can:inventory.requests.manage')->name('purchase-orders.store');
     Route::get('/ordenes-compra/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->middleware('can:inventory.requests.manage')->name('purchase-orders.show');
@@ -103,6 +104,7 @@ Route::middleware('auth')->group(function (): void {
     Route::resource('servicios', SalonServiceController::class)->middleware('can:settings.manage')->parameters(['servicios' => 'service'])->names('services');
     Route::get('/productos/catalogos', [ProductController::class, 'catalogs'])->middleware('can:products.manage')->name('products.catalogs');
     Route::post('/productos/catalogos/marcas', [ProductController::class, 'storeBrand'])->middleware('can:products.manage')->name('products.brands.store');
+    Route::post('/productos/catalogos/categorias', [ProductController::class, 'storeCategory'])->middleware('can:products.manage')->name('products.categories.store');
     Route::resource('productos', ProductController::class)->middleware('can:products.manage')->parameters(['productos' => 'product'])->names('products');
     Route::resource('promos', PromotionController::class)->middleware('can:settings.manage')->parameters(['promos' => 'promotion'])->names('promotions');
     Route::post('/promos/{promotion}/aplicar/tickets/{ticket}', [PromotionController::class, 'apply'])->middleware('can:tickets.update')->name('promotions.apply');

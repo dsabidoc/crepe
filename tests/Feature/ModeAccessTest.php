@@ -138,7 +138,7 @@ class ModeAccessTest extends TestCase
         $this->actingAs($user)
             ->get(route('products.catalogs'))
             ->assertOk()
-            ->assertSee('Marcas y proveedores');
+            ->assertSee('Catálogos de productos');
 
         $this->actingAs($user)
             ->post(route('products.brands.store'), ['name' => 'Davines'])
