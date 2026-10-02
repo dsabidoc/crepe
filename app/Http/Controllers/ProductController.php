@@ -18,7 +18,7 @@ class ProductController extends Controller
     {
         $search = trim((string) $request->string('search'));
         $categoryId = $request->integer('category');
-        $status = $request->string('status')->toString();
+        $status = $request->has('status') ? $request->string('status')->toString() : 'active';
         $scope = $request->string('scope')->toString();
         $products = Product::query()->with(['category', 'variants'])
             ->when($search, fn ($query) => $query->where(fn ($query) => $query
