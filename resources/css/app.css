@@ -1,6 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
+.team-card-actions { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:auto; padding-top:14px; border-top:1px solid var(--line); }
+.team-card-actions .card-link { margin-top:0; }
+.team-card-actions .text-action-danger { margin:0; padding:0; white-space:nowrap; }
+
 @theme { --font-sans: 'Plus Jakarta Sans', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; }
 
 :root { --ink:#3b333d; --muted:#84777e; --line:#f0e5e6; --canvas:#fffdfa; --soft:#fff8f6; --blue:#b95070; --blue-dark:#963b59; --blue-pale:#fceff0; --green:#278567; --amber:#b77a26; --shadow:0 14px 34px rgba(89,54,65,.07); }

@@ -17,9 +17,9 @@
             @error('system_role')<small class="form-error">{{ $message }}</small>@enderror
             @error('system_password')<small class="form-error">{{ $message }}</small>@enderror
         </section>
-        <div class="form-section"><label class="full-field"><span>Notas</span><textarea name="notes" rows="4">{{ old('notes', $employee->notes) }}</textarea></label></div><footer class="form-footer">@if($employee->exists)<button class="button button-secondary" type="submit" form="deactivate-employee">Desactivar</button>@endif<a href="{{ route('employees.index') }}">Cancelar</a><button class="button button-primary" type="submit">Guardar colaboradora</button></footer>
+        <div class="form-section"><label class="full-field"><span>Notas</span><textarea name="notes" rows="4">{{ old('notes', $employee->notes) }}</textarea></label></div><footer class="form-footer">@if($employee->exists && $employee->status === 'active')<button class="button button-secondary" type="submit" form="deactivate-employee">Quitar del equipo</button>@endif<a href="{{ route('employees.index') }}">Cancelar</a><button class="button button-primary" type="submit">Guardar colaboradora</button></footer>
     </form>
-    @if($employee->exists)<form id="deactivate-employee" method="POST" action="{{ route('employees.destroy', $employee) }}" onsubmit="return confirm('¿Desactivar a esta colaboradora? Se conservará su historial.')">@csrf @method('DELETE')</form>@endif
+    @if($employee->exists && $employee->status === 'active')<form id="deactivate-employee" method="POST" action="{{ route('employees.destroy', $employee) }}" onsubmit="return confirm('¿Quitar a esta colaboradora del equipo? Se conservará su historial y podrá consultarse como inactiva.')">@csrf @method('DELETE')</form>@endif
     <script>
         (() => {
             const accessEnabled = document.getElementById('system-access-enabled');

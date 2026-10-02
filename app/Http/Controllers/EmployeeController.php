@@ -107,7 +107,7 @@ class EmployeeController extends Controller
             $employee->user?->update(['is_active' => false]);
         });
 
-        return redirect()->route('employees.index')->with('success', 'Colaboradora desactivada. Se conserva su historial.');
+        return redirect()->route('employees.index')->with('success', 'Colaboradora retirada del equipo. Se conserva su historial.');
     }
 
     private function validated(Request $request, ?Employee $employee = null): array

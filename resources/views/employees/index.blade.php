@@ -36,7 +36,16 @@
                     <div><dt>Productos</dt><dd>{{ $employee->product_commission_rate !== null ? $employee->product_commission_rate.'%' : 'Sin definir' }}</dd></div>
                     <div><dt>Servicios</dt><dd>{{ $employee->commission_rate !== null ? $employee->commission_rate.'%' : 'Sin definir' }}</dd></div>
                 </dl>
-                <a class="card-link" href="{{ route('employees.edit', $employee) }}">Ver perfil <span>→</span></a>
+                <div class="team-card-actions">
+                    <a class="card-link" href="{{ route('employees.edit', $employee) }}">Ver perfil <span>→</span></a>
+                    @if($employee->status === 'active')
+                        <form method="POST" action="{{ route('employees.destroy', $employee) }}" onsubmit="return confirm('¿Quitar a {{ $employee->full_name }} del equipo? Se conservará su historial y podrá consultarse como inactiva.')">
+                            @csrf
+                            @method('DELETE')
+                            <button class="text-action-danger" type="submit">Quitar del equipo</button>
+                        </form>
+                    @endif
+                </div>
             </article>
         @empty
             <p class="empty-state">Aún no hay colaboradoras registradas.</p>

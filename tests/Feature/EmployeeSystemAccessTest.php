@@ -106,4 +106,29 @@ class EmployeeSystemAccessTest extends TestCase
         ])->assertRedirect(route('employees.create'))
             ->assertSessionHasErrors('position');
     }
+
+    public function test_administrator_can_remove_a_collaborator_without_losing_history(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $employee = Employee::query()->create([
+            'first_name' => 'Colaboradora',
+            'last_name' => 'Temporal',
+            'email' => 'colaboradora.temporal@crepe.mx',
+            'position' => 'Recepción',
+            'status' => 'active',
+            'is_bookable' => true,
+        ]);
+
+        $this->actingAs($administrator)
+            ->delete(route('employees.destroy', $employee))
+            ->assertRedirect(route('employees.index'))
+            ->assertSessionHas('success', 'Colaboradora retirada del equipo. Se conserva su historial.');
+
+        $this->assertDatabaseHas('employees', [
+            'id' => $employee->id,
+            'status' => 'inactive',
+            'is_bookable' => false,
+        ]);
+    }
 }
