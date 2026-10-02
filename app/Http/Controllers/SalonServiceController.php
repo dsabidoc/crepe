@@ -92,6 +92,9 @@ class SalonServiceController extends Controller
 
     private function validated(Request $request): array
     {
+        if (! $request->has('commission_type')) {
+            $request->merge(['commission_type' => 'percentage']);
+        }
         if ($request->input('price_type') === 'fixed' && ! $request->filled('price_names')) {
             $request->merge([
                 'price_names' => ['A', 'B', 'C'],
@@ -114,10 +117,18 @@ class SalonServiceController extends Controller
             'price_b_sale_price' => ['nullable', 'numeric', 'min:0'], 'price_b_cost' => ['nullable', 'numeric', 'min:0'],
             'price_c_sale_price' => ['nullable', 'numeric', 'min:0'], 'price_c_cost' => ['nullable', 'numeric', 'min:0'],
             'estimated_duration_minutes' => ['required', 'integer', 'min:5', 'max:720'],
-            'commission_rate' => ['nullable', 'numeric', 'between:0,100'], 'price_type' => ['required', Rule::in(['fixed', 'variable'])],
+            'commission_type' => ['required', Rule::in(['percentage', 'fixed'])],
+            'commission_rate' => ['nullable', 'numeric', 'between:0,100'],
+            'commission_fixed_amount' => [Rule::requiredIf($request->input('commission_type') === 'fixed'), 'nullable', 'numeric', 'min:0'],
+            'price_type' => ['required', Rule::in(['fixed', 'variable'])],
             'requires_color_bar' => ['nullable', 'boolean'], 'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
         $data['requires_color_bar'] = $request->boolean('requires_color_bar');
+        if ($data['commission_type'] === 'percentage') {
+            $data['commission_fixed_amount'] = null;
+        } else {
+            $data['commission_rate'] = null;
+        }
 
         if (($data['price_type'] ?? null) === 'fixed' && empty($data['price_names'])) {
             $data['price_names'] = ['A', 'B', 'C'];

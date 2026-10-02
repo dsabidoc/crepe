@@ -242,8 +242,12 @@ class TicketService
             }
 
             $employeeRate = (float) ($metadata['employee_commission_rate'] ?? $metadata['commission_rate'] ?? 0);
-            $serviceRate = (float) ($services->get($metadata['salon_service_id'] ?? null)?->commission_rate ?? 0);
-            $rate = $employeeRate + $serviceRate;
+            $service = $services->get($metadata['salon_service_id'] ?? null);
+            $serviceRate = (float) ($service?->commission_rate ?? 0);
+            $serviceFixedAmount = $service?->commission_type === 'fixed'
+                ? (float) ($service->commission_fixed_amount ?? 0)
+                : 0;
+            $rate = $employeeRate + ($service?->commission_type === 'percentage' ? $serviceRate : 0);
 
             $commission = CommissionEntry::query()->firstOrNew([
                 'ticket_id' => $ticket->id,
@@ -258,7 +262,7 @@ class TicketService
                 'type' => 'service',
                 'base_amount' => $item->line_total,
                 'rate_snapshot' => $rate,
-                'amount' => round((float) $item->line_total * ($rate / 100), 2),
+                'amount' => round((float) $item->line_total * ($rate / 100) + $serviceFixedAmount, 2),
                 'status' => 'pending',
             ])->save();
         }

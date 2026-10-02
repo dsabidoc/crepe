@@ -265,7 +265,7 @@ class FinanceController extends Controller
 
     public function destroyAccount(FinanceAccount $financeAccount): RedirectResponse
     {
-        abort_if(in_array($financeAccount->name, ['C-Bancomer', 'C-Efectivo', 'C-Recepción 1', 'C-Recepción 2'], true), 422, 'Esta cuenta es necesaria para la operación del sistema.');
+        abort_if(in_array($financeAccount->name, ['C-Bancomer', 'C-Efectivo', 'Bancomer 1', 'Caja Admon', 'C-Recepción 1', 'C-Recepción 2'], true), 422, 'Esta cuenta es necesaria para la operación del sistema.');
 
         if ($financeAccount->transactions()->exists() || $financeAccount->payments()->exists()) {
             return back()->withErrors(['account' => 'No puedes eliminar una cuenta con movimientos. Conserva su historial y déjala sin usar.']);

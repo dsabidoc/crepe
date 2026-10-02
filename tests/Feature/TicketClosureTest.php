@@ -127,4 +127,30 @@ class TicketClosureTest extends TestCase
         $this->assertSame(number_format(35 + $serviceRate, 2, '.', ''), $commission->rate_snapshot);
         $this->assertSame(number_format((float) $item->line_total * ((35 + $serviceRate) / 100), 2, '.', ''), $commission->amount);
     }
+
+    public function test_fixed_service_commission_is_added_to_the_employee_percentage(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $ticket = Ticket::query()->with('items')->where('status', 'open')->firstOrFail();
+        $cashRegister = CashRegister::query()->where('code', 'REC-01')->firstOrFail();
+        $item = $ticket->items->firstWhere('type', 'service');
+        $service = SalonService::query()->findOrFail($item->metadata['salon_service_id']);
+        $service->update(['commission_type' => 'fixed', 'commission_rate' => null, 'commission_fixed_amount' => 50]);
+
+        $this->actingAs($administrator)->post(route('tickets.payments.store', $ticket), [
+            'amount' => $ticket->balance,
+            'method' => 'card',
+            'cash_register_id' => $cashRegister->id,
+        ]);
+        $this->actingAs($administrator)->post(route('tickets.close', $ticket));
+
+        $commission = CommissionEntry::query()
+            ->where('ticket_id', $ticket->id)
+            ->where('ticket_item_id', $item->id)
+            ->firstOrFail();
+        $employeeRate = (float) $item->metadata['employee_commission_rate'];
+        $this->assertSame(number_format($employeeRate, 2, '.', ''), $commission->rate_snapshot);
+        $this->assertSame(number_format((float) $item->line_total * ($employeeRate / 100) + 50, 2, '.', ''), $commission->amount);
+    }
 }

@@ -337,6 +337,24 @@ class CashCutService
      */
     public function expectedAmounts(CashSession $cashSession): array
     {
+        $hasImportedSnapshot = $cashSession->status === 'verified'
+            && ! $cashSession->payments()->exists()
+            && ! $cashSession->cashTransactions()->exists()
+            && ((float) $cashSession->expected_cash > 0
+                || (float) $cashSession->expected_card > 0
+                || (float) $cashSession->expected_transfer > 0);
+
+        if ($hasImportedSnapshot) {
+            return [
+                'card' => (float) $cashSession->expected_card,
+                'cash' => (float) $cashSession->expected_cash,
+                'change' => (float) $cashSession->opening_float,
+                'gift_card' => (float) $cashSession->expected_gift_card,
+                'other' => (float) $cashSession->expected_other,
+                'transfer' => (float) $cashSession->expected_transfer,
+            ];
+        }
+
         $totals = Payment::query()
             ->whereBelongsTo($cashSession, 'cashSession')
             ->where('status', 'registered')

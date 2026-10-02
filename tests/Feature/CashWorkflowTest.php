@@ -279,4 +279,41 @@ class CashWorkflowTest extends TestCase
             'amount' => 1225,
         ]);
     }
+
+    public function test_imported_verified_cash_cut_uses_its_saved_amount_snapshot(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $register = CashRegister::query()->where('code', 'REC-01')->firstOrFail();
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $cashSession = CashSession::query()->create([
+            'cash_register_id' => $register->id,
+            'business_date' => now()->subMonth()->toDateString(),
+            'opened_by' => $administrator->id,
+            'opened_at' => now()->subMonth()->setTime(9, 0),
+            'opening_float' => 0,
+            'expected_cash' => 100,
+            'expected_card' => 200,
+            'expected_transfer' => 50,
+            'expected_gift_card' => 0,
+            'expected_other' => 0,
+            'actual_cash' => 100,
+            'actual_card' => 200,
+            'actual_transfer' => 50,
+            'actual_gift_card' => 0,
+            'actual_other' => 0,
+            'actual_change' => 0,
+            'closed_at' => now()->subMonth()->setTime(20, 0),
+            'closed_by' => $administrator->id,
+            'difference' => 0,
+            'status' => 'verified',
+            'verified_at' => now()->subMonth()->setTime(20, 5),
+            'verified_by' => $administrator->id,
+        ]);
+
+        $expected = app(CashCutService::class)->expectedAmounts($cashSession);
+
+        $this->assertSame(100.0, $expected['cash']);
+        $this->assertSame(200.0, $expected['card']);
+        $this->assertSame(50.0, $expected['transfer']);
+    }
 }
