@@ -33,8 +33,8 @@
         <article class="metric-card"><span>TOTAL INGRESOS</span><strong class="positive">${{ number_format($incomeTotal, 2) }}</strong><small class="neutral">Tickets + manuales</small></article>
         <article class="metric-card"><span>TOTAL GASTOS</span><strong class="negative">${{ number_format($expenses, 2) }}</strong><small class="neutral">Gastos registrados</small></article>
         <article class="metric-card"><span>TOTAL MOVIMIENTOS</span><strong>{{ number_format($movementCount) }}</strong><small class="neutral">Pagos y registros</small></article>
-        <article class="metric-card"><span>INGRESOS EN EFECTIVO</span><strong class="positive">${{ number_format($cashIncome, 2) }}</strong><small class="neutral">Pagos registrados</small></article>
-        <article class="metric-card"><span>INGRESOS BANCARIOS</span><strong class="positive">${{ number_format($bankIncome, 2) }}</strong><small class="neutral">Tarjetas y transferencias</small></article>
+        <article class="metric-card"><span>INGRESOS EN EFECTIVO</span><strong class="positive">${{ number_format($cashIncome, 2) }}</strong><small class="neutral">Pagos y movimientos</small></article>
+        <article class="metric-card"><span>INGRESOS BANCARIOS</span><strong class="positive">${{ number_format($bankIncome, 2) }}</strong><small class="neutral">Pagos y movimientos</small></article>
     </section>
 
     <section class="surface list-surface" style="margin-top:16px">

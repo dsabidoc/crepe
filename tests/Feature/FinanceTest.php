@@ -111,4 +111,61 @@ class FinanceTest extends TestCase
             ->assertOk()
             ->assertSee('Marina Vende');
     }
+
+    public function test_finance_dashboard_uses_ledger_movements_for_the_selected_month(): void
+    {
+        $this->travelTo('2026-10-01 12:00:00');
+        $this->seed(CrepeSeeder::class);
+        $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $account = FinanceAccount::query()->where('name', 'C-Efectivo')->firstOrFail();
+
+        FinanceTransaction::query()->create([
+            'finance_account_id' => $account->id,
+            'type' => 'income',
+            'concept' => 'Ingreso de administración',
+            'amount' => 150,
+            'occurred_on' => '2026-10-01',
+        ]);
+        FinanceTransaction::query()->create([
+            'finance_account_id' => $account->id,
+            'type' => 'expense',
+            'concept' => 'Compra operativa',
+            'amount' => 40,
+            'occurred_on' => '2026-10-01',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('finance.index', ['view' => 'dashboard']))
+            ->assertSee('INGRESOS REGISTRADOS')
+            ->assertSee('$650.00')
+            ->assertSee('$40.00')
+            ->assertSee('$610.00')
+            ->assertSee('Mes en curso');
+
+        $this->travelBack();
+    }
+
+    public function test_finance_dashboard_can_show_the_previous_calendar_month(): void
+    {
+        $this->travelTo('2026-10-01 12:00:00');
+        $this->seed(CrepeSeeder::class);
+        $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $account = FinanceAccount::query()->where('name', 'C-Efectivo')->firstOrFail();
+
+        FinanceTransaction::query()->create([
+            'finance_account_id' => $account->id,
+            'type' => 'income',
+            'concept' => 'Ingreso de septiembre',
+            'amount' => 275,
+            'occurred_on' => '2026-09-30',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('finance.index', ['view' => 'dashboard', 'period' => 'previous_month']))
+            ->assertSee('01/09/2026 al 30/09/2026')
+            ->assertSee('$275.00')
+            ->assertSee('Mes anterior');
+
+        $this->travelBack();
+    }
 }

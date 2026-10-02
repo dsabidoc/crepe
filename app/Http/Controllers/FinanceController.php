@@ -31,7 +31,9 @@ class FinanceController extends Controller
         $categories = FinanceExpenseCategory::query()->where('is_active', true)->orderBy('name')->get();
 
         if ($view === 'dashboard') {
-            return view('finance.dashboard', $this->dashboardData($from, $to));
+            [$from, $to, $period] = $this->resolveDashboardPeriod($request);
+
+            return view('finance.dashboard', $this->dashboardData($from, $to, $period));
         }
 
         if ($view === 'accounts') {
@@ -128,8 +130,16 @@ class FinanceController extends Controller
             ->when($accountId > 0, fn ($query) => $query->where('finance_account_id', $accountId))
             ->when($from, fn ($query, $from) => $query->whereDate('created_at', '>=', $from))
             ->when($to, fn ($query, $to) => $query->whereDate('created_at', '<=', $to));
-        $cashIncome = $includeIncome ? (clone $paymentSummaryQuery)->where('method', 'cash')->sum('amount') : 0;
-        $bankIncome = $includeIncome ? (clone $paymentSummaryQuery)->whereIn('method', ['card', 'transfer'])->sum('amount') : 0;
+        $manualCashIncome = $includeIncome ? (clone $summaryQuery)
+            ->where('type', 'income')
+            ->whereHas('account', fn ($query) => $query->where('type', 'cash'))
+            ->sum('amount') : 0;
+        $manualBankIncome = $includeIncome ? (clone $summaryQuery)
+            ->where('type', 'income')
+            ->whereHas('account', fn ($query) => $query->where('type', 'bank'))
+            ->sum('amount') : 0;
+        $cashIncome = $includeIncome ? (float) $manualCashIncome + (float) (clone $paymentSummaryQuery)->where('method', 'cash')->sum('amount') : 0;
+        $bankIncome = $includeIncome ? (float) $manualBankIncome + (float) (clone $paymentSummaryQuery)->whereIn('method', ['card', 'transfer'])->sum('amount') : 0;
         $filteredSummaryQuery = clone $summaryQuery;
         if (in_array($type, ['income', 'expense', 'transfer', 'adjustment'], true)) {
             $filteredSummaryQuery->where('type', $type);
@@ -286,7 +296,7 @@ class FinanceController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function dashboardData(string $from, string $to): array
+    private function dashboardData(string $from, string $to, string $period): array
     {
         $items = TicketItem::query()->with(['ticket.appointment.employee'])->where('status', 'active')
             ->whereHas('ticket', fn ($query) => $query->whereBetween('opened_at', [$from.' 00:00:00', $to.' 23:59:59']))
@@ -315,15 +325,82 @@ class FinanceController extends Controller
         };
         $productSellers = $items->where('type', 'product')->groupBy($employeeNameForItem)->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
         $serviceSellers = $items->where('type', 'service')->groupBy($employeeNameForItem)->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
-        $expenseRows = FinanceTransaction::query()->with('expenseCategory')->where('type', 'expense')->whereBetween('occurred_on', [$from, $to])->get();
-        $expenses = $expenseRows->groupBy(fn ($transaction): string => $transaction->expenseCategory?->name ?? 'Sin categoría')->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('amount')])->sortByDesc('amount')->values()->take(10);
+        $incomeRows = FinanceTransaction::query()
+            ->with('account')
+            ->where('type', 'income')
+            ->whereDate('occurred_on', '>=', $from)
+            ->whereDate('occurred_on', '<=', $to)
+            ->get();
+        $expenseRows = FinanceTransaction::query()
+            ->with('expenseCategory')
+            ->where('type', 'expense')
+            ->whereDate('occurred_on', '>=', $from)
+            ->whereDate('occurred_on', '<=', $to)
+            ->get();
+        $expenses = $expenseRows
+            ->groupBy(fn (FinanceTransaction $transaction): string => $transaction->expenseCategory?->name ?? $transaction->concept)
+            ->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('amount')])
+            ->sortByDesc('amount')
+            ->values()
+            ->take(10);
         $inventoryRequests = InventoryRequest::query()->with(['sourceLocation', 'items.variant.product'])->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])->latest()->limit(10)->get();
         $payments = Payment::query()->where('status', 'registered')->whereBetween('created_at', [$from.' 00:00:00', $to.' 23:59:59'])->get();
+        $ticketPayments = $payments->reject(fn (Payment $payment): bool => $payment->method === 'gift_card');
+        $manualIncome = (float) $incomeRows->sum('amount');
+        $ticketIncome = (float) $ticketPayments->sum('amount');
+        $expenseTotal = (float) $expenseRows->sum('amount');
+        $cashIncome = (float) $incomeRows
+            ->filter(fn (FinanceTransaction $transaction): bool => $transaction->account?->type === 'cash')
+            ->sum('amount') + (float) $ticketPayments->where('method', 'cash')->sum('amount');
+        $bankIncome = (float) $incomeRows
+            ->filter(fn (FinanceTransaction $transaction): bool => $transaction->account?->type === 'bank')
+            ->sum('amount') + (float) $ticketPayments->whereIn('method', ['card', 'transfer'])->sum('amount');
+        $otherIncome = (float) $incomeRows
+            ->filter(fn (FinanceTransaction $transaction): bool => ! in_array($transaction->account?->type, ['cash', 'bank'], true))
+            ->sum('amount') + (float) $ticketPayments->where('method', 'other')->sum('amount');
+        $accounts = FinanceAccount::query()->where('is_active', true)->orderBy('name')->get();
+        $this->hydrateAccountBalances($accounts, to: $to);
+        $totalAccountBalance = (float) $accounts->sum('current_balance');
+        $totalIncome = $manualIncome + $ticketIncome;
 
-        return compact('expenses', 'from', 'inventoryRequests', 'payments', 'productRevenue', 'products', 'productSellers', 'serviceMix', 'serviceRevenue', 'services', 'serviceSellers', 'to', 'totalRevenue') + [
+        return compact('accounts', 'bankIncome', 'cashIncome', 'expenses', 'expenseTotal', 'from', 'incomeRows', 'inventoryRequests', 'manualIncome', 'otherIncome', 'payments', 'period', 'productRevenue', 'products', 'productSellers', 'serviceMix', 'serviceRevenue', 'services', 'serviceSellers', 'ticketIncome', 'to', 'totalAccountBalance', 'totalIncome', 'totalRevenue') + [
+            'expenseRecordCount' => $expenseRows->count(),
             'fromLabel' => Carbon::parse($from)->format('d/m/Y'),
+            'incomeRecordCount' => $incomeRows->count() + $ticketPayments->count(),
+            'netTotal' => $totalIncome - $expenseTotal,
             'toLabel' => Carbon::parse($to)->format('d/m/Y'),
         ];
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function resolveDashboardPeriod(Request $request): array
+    {
+        $period = $request->string('period')->toString();
+        $period = in_array($period, ['today', 'current_month', 'previous_month', 'custom'], true)
+            ? $period
+            : 'current_month';
+        $today = now();
+
+        [$from, $to] = match ($period) {
+            'today' => [$today->toDateString(), $today->toDateString()],
+            'previous_month' => [
+                $today->copy()->subMonthNoOverflow()->startOfMonth()->toDateString(),
+                $today->copy()->subMonthNoOverflow()->endOfMonth()->toDateString(),
+            ],
+            'custom' => [
+                $request->date('from')?->toDateString() ?? $today->copy()->startOfMonth()->toDateString(),
+                $request->date('to')?->toDateString() ?? $today->toDateString(),
+            ],
+            default => [$today->copy()->startOfMonth()->toDateString(), $today->toDateString()],
+        };
+
+        if (Carbon::parse($from)->greaterThan(Carbon::parse($to))) {
+            [$from, $to] = [$to, $from];
+        }
+
+        return [$from, $to, $period];
     }
 
     private function hydrateAccountBalances(Collection $accounts, ?string $from = null, ?string $to = null): void
