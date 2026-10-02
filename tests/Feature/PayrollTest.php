@@ -92,4 +92,61 @@ class PayrollTest extends TestCase
 
         $this->actingAs($reception)->get(route('payroll.index'))->assertForbidden();
     }
+
+    public function test_administrator_can_delete_a_generated_payroll_and_release_commissions(): void
+    {
+        Storage::fake('public');
+        $this->seed(CrepeSeeder::class);
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $employee = Employee::query()->where('email', 'ana@crepe.mx')->firstOrFail();
+        $employee->update(['salary' => 700, 'salary_type' => 'weekly']);
+        $ticket = Ticket::query()->firstOrFail();
+        $ticket->update(['paid_at' => now()]);
+        $ticketItem = TicketItem::query()->whereBelongsTo($ticket)->firstOrFail();
+        $commission = CommissionEntry::query()->create([
+            'ticket_id' => $ticket->id,
+            'ticket_item_id' => $ticketItem->id,
+            'employee_id' => $employee->id,
+            'type' => 'service',
+            'base_amount' => 500,
+            'rate_snapshot' => 20,
+            'amount' => 100,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($administrator)->post(route('payroll.store'), [
+            'period_starts_on' => now()->startOfWeek()->toDateString(),
+            'period_ends_on' => now()->endOfWeek()->toDateString(),
+        ])->assertRedirect();
+
+        $payrollRun = PayrollRun::query()->latest('id')->firstOrFail();
+        $payrollItem = PayrollItem::query()->whereBelongsTo($payrollRun)->whereBelongsTo($employee)->firstOrFail();
+        $this->assertDatabaseHas('commission_entries', ['id' => $commission->id, 'payroll_item_id' => $payrollItem->id, 'status' => 'settled']);
+        $account = FinanceAccount::query()->where('is_active', true)->firstOrFail();
+        $evidencePath = 'payroll-withdrawals/delete-test.png';
+        Storage::disk('public')->put($evidencePath, 'evidence');
+        $withdrawal = FinanceTransaction::query()->create([
+            'finance_account_id' => $account->id,
+            'type' => 'expense',
+            'direction' => 'out',
+            'concept' => 'Retiro de nómina',
+            'amount' => 100,
+            'occurred_on' => now()->toDateString(),
+            'evidence_path' => $evidencePath,
+            'source_type' => PayrollRun::class,
+            'source_id' => $payrollRun->id,
+            'created_by' => $administrator->id,
+        ]);
+
+        $this->actingAs($administrator)
+            ->delete(route('payroll.destroy', $payrollRun))
+            ->assertRedirect(route('payroll.index'))
+            ->assertSessionHas('success', 'Nómina eliminada. Las comisiones quedaron disponibles para generar una nueva nómina.');
+
+        $this->assertDatabaseMissing('payroll_runs', ['id' => $payrollRun->id]);
+        $this->assertDatabaseMissing('payroll_items', ['id' => $payrollItem->id]);
+        $this->assertDatabaseMissing('finance_transactions', ['id' => $withdrawal->id]);
+        Storage::disk('public')->assertMissing($evidencePath);
+        $this->assertDatabaseHas('commission_entries', ['id' => $commission->id, 'payroll_item_id' => null, 'status' => 'pending']);
+    }
 }

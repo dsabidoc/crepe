@@ -96,6 +96,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/nomina', [PayrollController::class, 'index'])->middleware('can:finance.view')->name('payroll.index');
     Route::post('/nomina', [PayrollController::class, 'store'])->middleware('can:finance.manage')->name('payroll.store');
     Route::get('/nomina/{payrollRun}', [PayrollController::class, 'show'])->middleware('can:finance.view')->name('payroll.show');
+    Route::delete('/nomina/{payrollRun}', [PayrollController::class, 'destroy'])->middleware('can:finance.manage')->name('payroll.destroy');
     Route::post('/nomina/{payrollRun}/retiros', [PayrollController::class, 'withdraw'])->middleware('can:finance.manage')->name('payroll.withdrawals.store');
     Route::put('/nomina/{payrollRun}/descuentos', [PayrollController::class, 'updateDiscount'])->middleware('can:finance.manage')->name('payroll.discounts.update');
     Route::put('/nomina/{payrollRun}/personas/{payrollItem}', [PayrollController::class, 'updateItem'])->middleware('can:finance.manage')->name('payroll.items.update');

@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\ValidationException;
@@ -98,6 +99,37 @@ class PayrollController extends Controller
             'withdrawnTotal' => $withdrawnTotal,
             'withdrawalRemaining' => max(0, round($payrollTotal - $withdrawnTotal, 2)),
         ]);
+    }
+
+    public function destroy(PayrollRun $payrollRun): RedirectResponse
+    {
+        $evidencePaths = DB::transaction(function () use ($payrollRun): array {
+            $run = PayrollRun::query()->lockForUpdate()->findOrFail($payrollRun->id);
+            $payrollItemIds = $run->items()->pluck('id');
+
+            if ($payrollItemIds->isNotEmpty()) {
+                CommissionEntry::query()
+                    ->whereIn('payroll_item_id', $payrollItemIds)
+                    ->update(['payroll_item_id' => null, 'status' => 'pending']);
+            }
+
+            $withdrawals = FinanceTransaction::query()
+                ->where('source_type', PayrollRun::class)
+                ->where('source_id', $run->id)
+                ->lockForUpdate()
+                ->get(['id', 'evidence_path']);
+
+            $withdrawals->each->delete();
+            $run->delete();
+
+            return $withdrawals->pluck('evidence_path')->filter()->values()->all();
+        });
+
+        foreach ($evidencePaths as $evidencePath) {
+            Storage::disk('public')->delete($evidencePath);
+        }
+
+        return redirect()->route('payroll.index')->with('success', 'Nómina eliminada. Las comisiones quedaron disponibles para generar una nueva nómina.');
     }
 
     public function withdraw(Request $request, PayrollRun $payrollRun): RedirectResponse

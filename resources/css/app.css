@@ -1000,6 +1000,8 @@ dialog textarea {
 
 /* Nómina: evita que el formulario quede pegado al borde y mantiene una acción clara. */
 .payroll-page-heading { margin-bottom:26px; }
+.payroll-delete-button { color:#a23e55; background:#fff1f3; }
+.payroll-delete-button:hover { color:#8e3048; background:#fce1e7; }
 .payroll-create,
 .payroll-item {
     padding:26px 28px;

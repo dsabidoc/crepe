@@ -6,7 +6,14 @@
             <h1>{{ $payrollRun->period_starts_on->translatedFormat('d M Y') }} — {{ $payrollRun->period_ends_on->translatedFormat('d M Y') }}</h1>
             <p>{{ $payrollRun->items->count() }} personas · {{ $payrollRun->includes_product_commissions ? 'Incluye' : 'No incluye' }} comisión de productos.</p>
         </div>
-        <a class="button button-secondary" href="{{ route('payroll.index') }}">Volver a nómina</a>
+        <div class="title-actions">
+            <form method="POST" action="{{ route('payroll.destroy', $payrollRun) }}" onsubmit="return confirm('¿Eliminar la Nómina {{ str_pad((string) $payrollRun->payroll_number, 2, '0', STR_PAD_LEFT) }}? Se eliminarán su detalle, descuentos, retiros y comprobantes. Las comisiones quedarán pendientes para poder generar otra nómina.')">
+                @csrf
+                @method('DELETE')
+                <button class="button button-secondary payroll-delete-button" type="submit">Eliminar nómina</button>
+            </form>
+            <a class="button button-secondary" href="{{ route('payroll.index') }}">Volver a nómina</a>
+        </div>
     </section>
 
     <section class="metric-grid payroll-metrics">
