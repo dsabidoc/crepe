@@ -174,6 +174,7 @@ class CrepeSeeder extends Seeder
                 $metadata['price_confirmed'] = true;
                 $item->update(['metadata' => $metadata]);
             });
+            app(TicketService::class)->syncPricingTotals($seededTicket);
         }
 
         foreach ([['Coloración', '#9A5EEA'], ['Oxidantes', '#6B9DEA'], ['Retail', '#1A9B74']] as [$name, $color]) {
@@ -212,6 +213,7 @@ class CrepeSeeder extends Seeder
         $shampoo = $variants['SH-REST-STD'];
         $mariaTicket->items()->firstOrCreate(['type' => 'product', 'name_snapshot' => 'Shampoo Restore'], ['quantity' => 1, 'unit' => 'unidad', 'unit_price' => $shampoo->sale_price, 'line_total' => $shampoo->sale_price, 'cost_snapshot' => $shampoo->cost, 'status' => 'active', 'metadata' => ['employee_id' => $employees['ana@crepe.mx']], 'added_by' => $user->id]);
         $mariaTicket->payments()->firstOrCreate(['type' => 'deposit', 'method' => 'transfer', 'amount' => 500], ['status' => 'registered', 'reference' => 'ANT-0001', 'created_by' => $user->id]);
+        app(TicketService::class)->syncPricingTotals($mariaTicket);
         CashRegister::query()->updateOrCreate(['code' => 'REC-01'], ['name' => 'Recepción 1', 'code' => 'REC-01', 'is_active' => true]);
         CashRegister::query()->updateOrCreate(['code' => 'REC-02'], ['name' => 'Recepción 2', 'code' => 'REC-02', 'is_active' => true]);
         CashRegister::query()->where('code', 'REC-01')->update(['finance_account_id' => FinanceAccount::query()->where('name', 'C-Recepción 1')->value('id')]);

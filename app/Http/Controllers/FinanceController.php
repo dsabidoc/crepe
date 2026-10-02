@@ -8,6 +8,7 @@ use App\Models\FinanceExpenseCategory;
 use App\Models\FinanceTransaction;
 use App\Models\InventoryRequest;
 use App\Models\Payment;
+use App\Models\Ticket;
 use App\Models\TicketItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -298,15 +299,29 @@ class FinanceController extends Controller
     /** @return array<string, mixed> */
     private function dashboardData(string $from, string $to, string $period): array
     {
-        $items = TicketItem::query()->with(['ticket.appointment.employee'])->where('status', 'active')
-            ->whereHas('ticket', fn ($query) => $query->whereBetween('opened_at', [$from.' 00:00:00', $to.' 23:59:59']))
-            ->whereIn('type', ['product', 'service'])->get();
-        $products = $items->where('type', 'product')->groupBy('name_snapshot')->map(fn ($rows, $name): array => ['name' => $name, 'quantity' => (float) $rows->sum('quantity'), 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
-        $services = $items->where('type', 'service')->groupBy('name_snapshot')->map(fn ($rows, $name): array => ['name' => $name, 'quantity' => (float) $rows->sum('quantity'), 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
-        $productRevenue = (float) $items->where('type', 'product')->sum('line_total');
-        $serviceRevenue = (float) $items->where('type', 'service')->sum('line_total');
+        $items = Ticket::query()
+            ->with(['items' => fn ($query) => $query->where('status', 'active')->whereIn('type', ['product', 'service']), 'appointment.employee'])
+            ->where('status', 'paid')
+            ->whereHas('payments', fn ($query) => $query->where('status', 'registered'))
+            ->whereBetween('paid_at', [$from.' 00:00:00', $to.' 23:59:59'])
+            ->get()
+            ->flatMap(function (Ticket $ticket): Collection {
+                $listedTotal = (float) $ticket->listed_total;
+                $ratio = $listedTotal > 0 ? (float) $ticket->charged_total / $listedTotal : 0;
+
+                return $ticket->items->map(function (TicketItem $item) use ($ratio, $ticket): TicketItem {
+                    $item->setAttribute('charged_line_total', round((float) $item->line_total * $ratio, 2));
+                    $item->setRelation('ticket', $ticket);
+
+                    return $item;
+                });
+            });
+        $products = $items->where('type', 'product')->groupBy('name_snapshot')->map(fn ($rows, $name): array => ['name' => $name, 'quantity' => (float) $rows->sum('quantity'), 'amount' => (float) $rows->sum('charged_line_total')])->sortByDesc('amount')->values()->take(10);
+        $services = $items->where('type', 'service')->groupBy('name_snapshot')->map(fn ($rows, $name): array => ['name' => $name, 'quantity' => (float) $rows->sum('quantity'), 'amount' => (float) $rows->sum('charged_line_total')])->sortByDesc('amount')->values()->take(10);
+        $productRevenue = (float) $items->where('type', 'product')->sum('charged_line_total');
+        $serviceRevenue = (float) $items->where('type', 'service')->sum('charged_line_total');
         $totalRevenue = $productRevenue + $serviceRevenue;
-        $serviceGroups = $items->where('type', 'service')->groupBy('name_snapshot')->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values();
+        $serviceGroups = $items->where('type', 'service')->groupBy('name_snapshot')->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('charged_line_total')])->sortByDesc('amount')->values();
         $serviceMix = $serviceGroups->take(5)->map(fn (array $service): array => $service + ['percent' => $serviceRevenue > 0 ? round($service['amount'] / $serviceRevenue * 100, 1) : 0]);
         $otherServiceAmount = (float) $serviceGroups->slice(5)->sum('amount');
         if ($otherServiceAmount > 0) {
@@ -323,8 +338,8 @@ class FinanceController extends Controller
 
             return $employeesById->get($employeeId)?->full_name ?? 'Sin asignar';
         };
-        $productSellers = $items->where('type', 'product')->groupBy($employeeNameForItem)->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
-        $serviceSellers = $items->where('type', 'service')->groupBy($employeeNameForItem)->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('line_total')])->sortByDesc('amount')->values()->take(10);
+        $productSellers = $items->where('type', 'product')->groupBy($employeeNameForItem)->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('charged_line_total')])->sortByDesc('amount')->values()->take(10);
+        $serviceSellers = $items->where('type', 'service')->groupBy($employeeNameForItem)->map(fn ($rows, $name): array => ['name' => $name, 'amount' => (float) $rows->sum('charged_line_total')])->sortByDesc('amount')->values()->take(10);
         $incomeRows = FinanceTransaction::query()
             ->with('account')
             ->where('type', 'income')

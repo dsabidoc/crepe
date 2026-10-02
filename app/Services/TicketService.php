@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\ProductVariant;
 use App\Models\SalonService;
 use App\Models\Ticket;
+use App\Models\TicketAdjustment;
 use App\Models\TicketItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -34,6 +35,8 @@ class TicketService
                 $ticket->items()->create(['type' => 'service', 'name_snapshot' => $service->name_snapshot, 'quantity' => 1, 'unit' => 'servicio', 'unit_price' => $firstPrice?->sale_price ?? $service->estimated_price, 'line_total' => $firstPrice?->sale_price ?? $service->estimated_price, 'cost_snapshot' => $firstPrice?->cost ?? $service->service?->base_cost, 'status' => 'active', 'metadata' => ['salon_service_id' => $service->salon_service_id, 'employee_id' => $service->employee_id, 'employee_commission_rate' => optional($service->employee)->commission_rate, 'price_type' => $service->service?->price_type, 'price_tier' => $firstPrice?->tier, 'price_confirmed' => false], 'added_by' => $actorId]);
             }
         }
+
+        $this->syncPricingTotals($ticket);
 
         return $ticket;
     }
@@ -94,6 +97,7 @@ class TicketService
                 $item->id,
                 "Venta en {$ticket->code}",
             );
+            $this->syncPricingTotals($ticket);
 
             return $item;
         });
@@ -104,6 +108,8 @@ class TicketService
         return DB::transaction(function () use ($ticket, $amount, $method, $cashRegisterId, $actorId, $financeAccountId): Payment {
             $ticket = Ticket::query()->with(['items', 'adjustments', 'payments'])->lockForUpdate()->findOrFail($ticket->id);
             $this->ensureServicePricesConfirmed($ticket);
+            $this->syncPricingTotals($ticket);
+            $ticket->refresh()->load('items', 'adjustments', 'payments');
             if ($ticket->status === 'paid' || $amount <= 0 || $amount > $ticket->balance + 0.01) {
                 throw ValidationException::withMessages(['amount' => 'El monto no es válido para el saldo actual.']);
             }
@@ -123,6 +129,8 @@ class TicketService
         DB::transaction(function () use ($ticket): void {
             $ticket = Ticket::query()->lockForUpdate()->findOrFail($ticket->id);
             $this->ensureServicePricesConfirmed($ticket->load('items'));
+            $this->syncPricingTotals($ticket);
+            $ticket->refresh()->load('items');
 
             if ($ticket->status === 'cancelled' || $ticket->balance > 0.01) {
                 throw ValidationException::withMessages([
@@ -213,6 +221,71 @@ class TicketService
                 }
             }
         });
+    }
+
+    public function setManualDiscount(Ticket $ticket, float $amount, ?string $reason, int $actorId): void
+    {
+        DB::transaction(function () use ($ticket, $amount, $reason, $actorId): void {
+            $ticket = Ticket::query()->with(['adjustments', 'payments'])->lockForUpdate()->findOrFail($ticket->id);
+
+            if ($ticket->status === 'paid') {
+                throw ValidationException::withMessages(['discount_amount' => 'No puedes modificar descuentos de un ticket pagado.']);
+            }
+
+            $manualDiscount = $ticket->adjustments->first(fn (TicketAdjustment $adjustment): bool => (bool) ($adjustment->metadata['manual_discount'] ?? false));
+            $otherAdjustments = (float) $ticket->adjustments
+                ->reject(fn (TicketAdjustment $adjustment): bool => $manualDiscount?->is($adjustment) ?? false)
+                ->sum('amount');
+            $paidTotal = (float) $ticket->payments->where('status', 'registered')->sum('amount');
+            $maximumDiscount = max(0, $this->listedTotal($ticket) + $otherAdjustments - $paidTotal);
+
+            if ($amount < 0 || $amount > $maximumDiscount + 0.01) {
+                throw ValidationException::withMessages(['discount_amount' => 'El descuento no puede superar el saldo disponible del ticket.']);
+            }
+
+            if ($amount <= 0.001) {
+                $manualDiscount?->delete();
+            } elseif ($manualDiscount !== null) {
+                $manualDiscount->update([
+                    'amount' => -round($amount, 2),
+                    'reason' => $reason ?: 'Descuento manual',
+                    'created_by' => $actorId,
+                ]);
+            } else {
+                TicketAdjustment::query()->create([
+                    'ticket_id' => $ticket->id,
+                    'type' => 'discount',
+                    'amount' => -round($amount, 2),
+                    'reason' => $reason ?: 'Descuento manual',
+                    'created_by' => $actorId,
+                    'metadata' => ['manual_discount' => true],
+                ]);
+            }
+
+            $this->syncPricingTotals($ticket);
+        });
+    }
+
+    public function syncPricingTotals(Ticket $ticket): Ticket
+    {
+        $listedTotal = $this->listedTotal($ticket);
+        $adjustmentTotal = round((float) TicketAdjustment::query()->where('ticket_id', $ticket->id)->sum('amount'), 2);
+
+        $ticket->forceFill([
+            'listed_total' => $listedTotal,
+            'discount_total' => max(0, -$adjustmentTotal),
+            'charged_total' => max(0, $listedTotal + $adjustmentTotal),
+        ])->save();
+
+        return $ticket;
+    }
+
+    private function listedTotal(Ticket $ticket): float
+    {
+        return round((float) TicketItem::query()
+            ->where('ticket_id', $ticket->id)
+            ->where('status', 'active')
+            ->sum('line_total'), 2);
     }
 
     private function ensureServicePricesConfirmed(Ticket $ticket): void

@@ -11,6 +11,9 @@
         $serviceCategories = $services->pluck('category')->filter()->unique('id')->values();
         $serviceCatalogById = $services->keyBy('id');
         $unconfirmedServiceItems = $serviceItems->filter(fn ($item): bool => ($item->metadata['price_confirmed'] ?? false) !== true);
+        $manualDiscount = $ticket->adjustments->first(fn ($adjustment): bool => (bool) ($adjustment->metadata['manual_discount'] ?? false));
+        $manualDiscountAmount = abs((float) ($manualDiscount?->amount ?? 0));
+        $maximumManualDiscount = max(0, $ticket->charged_total + $manualDiscountAmount - $ticket->paid_total);
         $canChargeTicket = $ticket->status === 'open'
             && $ticket->balance > 0
             && $unconfirmedServiceItems->isEmpty()
@@ -138,15 +141,29 @@
             @error('price_tier')<p class="form-error">{{ $message }}</p>@enderror
             @error('unit_price')<p class="form-error">{{ $message }}</p>@enderror
             @error('appointment')<p class="form-error">{{ $message }}</p>@enderror
-            <div><span>Subtotal</span><b>${{ number_format($ticket->subtotal, 0) }}</b></div><div><span>Anticipos / pagos</span><b>−${{ number_format($ticket->paid_total, 0) }}</b></div><div class="summary-total"><span>Saldo</span><strong>${{ number_format($ticket->balance, 0) }}</strong></div>
+            <div><span>Precio de lista</span><b>${{ number_format($ticket->listed_total, 0) }}</b></div>
+            @if($ticket->discount_total > 0)
+                <div><span>Descuentos y promociones</span><b>−${{ number_format($ticket->discount_total, 0) }}</b></div>
+            @endif
+            <div><span>Total a cobrar</span><b>${{ number_format($ticket->charged_total, 0) }}</b></div>
+            <div><span>Anticipos / pagos</span><b>−${{ number_format($ticket->paid_total, 0) }}</b></div>
+            <div class="summary-total"><span>Saldo</span><strong>${{ number_format($ticket->balance, 0) }}</strong></div>
             @if($ticket->payments->where('status', 'registered')->isNotEmpty())
                 @php($paymentMethodLabels = ['cash' => 'Efectivo', 'card' => 'Tarjeta', 'transfer' => 'Transferencia', 'gift_card' => 'Gift Card', 'other' => 'Otro'])
                 <div class="ticket-payment-list"><span>Pagos aplicados</span>@foreach($ticket->payments->where('status', 'registered')->sortBy('created_at') as $payment)<small>{{ $paymentMethodLabels[$payment->method] ?? str($payment->method)->headline() }} <b>${{ number_format((float) $payment->amount, 2) }}</b></small>@endforeach</div>
             @endif
             @if($ticket->adjustments->isNotEmpty())
-                <div class="ticket-adjustments"><span>Promociones</span>@foreach($ticket->adjustments as $adjustment)<small>{{ $adjustment->reason }} <b>{{ $adjustment->amount < 0 ? '−' : '+' }}${{ number_format(abs((float) $adjustment->amount), 0) }}</b></small>@endforeach</div>
+                <div class="ticket-adjustments"><span>Descuentos y promociones</span>@foreach($ticket->adjustments as $adjustment)<small>{{ $adjustment->reason }} <b>{{ $adjustment->amount < 0 ? '−' : '+' }}${{ number_format(abs((float) $adjustment->amount), 0) }}</b></small>@endforeach</div>
             @endif
             @if($promotionRewardItems->isNotEmpty())<div class="ticket-reward-note">🎁 Regalos incluidos: {{ $promotionRewardItems->pluck('name_snapshot')->join(', ') }}</div>@endif
+            @if($ticket->status !== 'paid')
+                <form method="POST" action="{{ route('tickets.discounts.update', $ticket) }}" class="promotion-apply-form">@csrf @method('PUT')
+                    <label><span>Descuento manual</span><input name="discount_amount" type="number" min="0" max="{{ number_format($maximumManualDiscount, 2, '.', '') }}" step=".01" value="{{ number_format($manualDiscountAmount, 2, '.', '') }}"></label>
+                    <input name="discount_reason" value="{{ $manualDiscount?->reason }}" placeholder="Motivo (opcional)">
+                    @error('discount_amount')<p class="form-error">{{ $message }}</p>@enderror
+                    <button class="button button-secondary button-full" type="submit">Guardar descuento</button>
+                </form>
+            @endif
             @if($ticket->status !== 'paid' && $promotions->isNotEmpty())
                 <form method="POST" action="#" class="promotion-apply-form" id="promotion-apply-form">@csrf<label><span>Agregar promoción</span><select name="promotion_id" id="promotion-selector" required><option value="">Selecciona una promo</option>@foreach($promotions as $promotion)<option value="{{ $promotion->id }}" data-action="{{ route('promotions.apply', [$promotion, $ticket]) }}">{{ $promotion->name }}{{ $promotion->method === 'code' ? ' · requiere código' : '' }}</option>@endforeach</select></label><input name="promotion_code" placeholder="Código (si aplica)">@error('promotion')<p class="form-error">{{ $message }}</p>@enderror<button class="button button-secondary button-full" type="submit">Aplicar promoción</button></form>
             @endif
@@ -217,7 +234,7 @@
             <form method="POST" action="{{ route('tickets.payments.store', $ticket) }}" class="payment-modal-form">
                 @csrf
                 <header>
-                    <div><p class="eyebrow">COBRAR TICKET</p><h2>Registrar pago</h2><p>Aplica pagos parciales y combina métodos hasta liquidar el saldo.</p></div>
+                    <div><p class="eyebrow">COBRAR TICKET</p><h2>Registrar pago</h2><p>Precio de lista: ${{ number_format($ticket->listed_total, 2) }} · Total a cobrar: ${{ number_format($ticket->charged_total, 2) }}.</p></div>
                     <button type="button" class="dialog-close" data-close-dialog aria-label="Cerrar">×</button>
                 </header>
                 <div class="payment-modal-content">

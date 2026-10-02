@@ -165,7 +165,7 @@ class TicketController extends Controller
         return view('tickets.show', compact('ticket', 'services', 'variants', 'cashRegisters', 'cashSession', 'financeAccounts', 'isCashAdministrator', 'promotions', 'responsibleEmployees', 'commissionableEmployees'));
     }
 
-    public function addService(Request $request, Ticket $ticket): RedirectResponse
+    public function addService(Request $request, Ticket $ticket, TicketService $tickets): RedirectResponse
     {
         abort_if($ticket->ticket_type === 'product_sale' && ! $request->user()->can('mode.reception.access'), 403);
         abort_if($ticket->status === 'paid', 422);
@@ -176,7 +176,7 @@ class TicketController extends Controller
             'unit_price' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        DB::transaction(function () use ($data, $request, $ticket): void {
+        DB::transaction(function () use ($data, $request, $ticket, $tickets): void {
             $ticket = Ticket::query()->with('appointment.employee')->lockForUpdate()->findOrFail($ticket->id);
             $service = SalonService::query()->with('prices')->where('status', 'active')->lockForUpdate()->findOrFail($data['salon_service_id']);
             $employee = $ticket->appointment?->employee;
@@ -222,19 +222,20 @@ class TicketController extends Controller
                 ],
                 'added_by' => $request->user()->id,
             ]);
+            $tickets->syncPricingTotals($ticket);
         });
 
         return back()->with('success', 'Servicio agregado al ticket.');
     }
 
-    public function confirmService(Request $request, Ticket $ticket, TicketItem $item): RedirectResponse
+    public function confirmService(Request $request, Ticket $ticket, TicketItem $item, TicketService $tickets): RedirectResponse
     {
         $data = $request->validate([
             'price_tier' => ['nullable', 'string', 'max:80'],
             'unit_price' => ['nullable', 'numeric', 'min:0'],
         ]);
 
-        DB::transaction(function () use ($data, $request, $ticket, $item): void {
+        DB::transaction(function () use ($data, $request, $ticket, $item, $tickets): void {
             $ticket = Ticket::query()->lockForUpdate()->findOrFail($ticket->id);
             $ticketItem = TicketItem::query()->where('ticket_id', $ticket->id)->lockForUpdate()->findOrFail($item->id);
 
@@ -275,6 +276,7 @@ class TicketController extends Controller
             $metadata['price_confirmed_at'] = now()->toIso8601String();
             $ticketItem->metadata = $metadata;
             $ticketItem->save();
+            $tickets->syncPricingTotals($ticket);
         });
 
         return back()->with('success', 'Tipo de precio confirmado.');
@@ -358,6 +360,23 @@ class TicketController extends Controller
         $tickets->registerPayment($ticket, (float) $data['amount'], $data['method'], $cashRegisterId, $request->user()->id, $financeAccountId);
 
         return back()->with('success', 'Pago registrado correctamente.');
+    }
+
+    public function updateDiscount(Request $request, Ticket $ticket, TicketService $tickets): RedirectResponse
+    {
+        $data = $request->validate([
+            'discount_amount' => ['required', 'numeric', 'min:0'],
+            'discount_reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $tickets->setManualDiscount(
+            $ticket,
+            (float) $data['discount_amount'],
+            filled($data['discount_reason'] ?? null) ? trim($data['discount_reason']) : null,
+            $request->user()->id,
+        );
+
+        return back()->with('success', (float) $data['discount_amount'] > 0 ? 'Descuento manual actualizado.' : 'Descuento manual eliminado.');
     }
 
     public function close(Ticket $ticket, TicketService $tickets): RedirectResponse

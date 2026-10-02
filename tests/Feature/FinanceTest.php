@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Employee;
 use App\Models\FinanceAccount;
 use App\Models\FinanceTransaction;
+use App\Models\Payment;
 use App\Models\Ticket;
 use App\Models\TicketItem;
 use App\Models\User;
@@ -91,6 +92,8 @@ class FinanceTest extends TestCase
             'ticket_type' => 'product_sale',
             'status' => 'paid',
             'estimated_total' => 360,
+            'listed_total' => 360,
+            'charged_total' => 360,
             'opened_at' => now(),
             'paid_at' => now(),
         ]);
@@ -104,6 +107,13 @@ class FinanceTest extends TestCase
             'line_total' => 360,
             'status' => 'active',
             'metadata' => ['employee_id' => $recommendingEmployee->id],
+        ]);
+        Payment::query()->create([
+            'ticket_id' => $ticket->id,
+            'method' => 'card',
+            'amount' => 360,
+            'status' => 'registered',
+            'created_by' => $user->id,
         ]);
 
         $this->actingAs($user)

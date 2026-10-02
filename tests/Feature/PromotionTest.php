@@ -31,6 +31,9 @@ class PromotionTest extends TestCase
         $this->assertDatabaseHas('ticket_adjustments', [
             'ticket_id' => $ticket->id, 'type' => 'discount', 'amount' => -100, 'reason' => 'Descuento de bienvenida',
         ]);
+        $ticket->refresh();
+        $this->assertSame(100.0, (float) $ticket->discount_total);
+        $this->assertSame((float) $ticket->listed_total - 100, (float) $ticket->charged_total);
         $this->assertSame(1, $promotion->fresh()->usage_count);
     }
 

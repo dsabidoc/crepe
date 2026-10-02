@@ -12,7 +12,8 @@
                 $services = $activeItems->where('type', 'service');
                 $products = $activeItems->where('type', 'product');
                 $colorBar = $activeItems->where('type', 'color_bar');
-                $ticketTotal = (float) $activeItems->sum('line_total') + (float) $ticket->adjustments->sum('amount');
+                $listedTotal = (float) $ticket->listed_total;
+                $chargedTotal = (float) $ticket->charged_total;
                 $paidTotal = (float) $ticket->payments->where('status', 'registered')->sum('amount');
                 $visitDate = $ticket->appointment?->starts_at ?? $ticket->opened_at ?? $ticket->created_at;
             @endphp
@@ -42,7 +43,7 @@
                                 <div class="customer-ticket-item"><span>{{ $item->name_snapshot }} · {{ number_format((float) $item->quantity, 0) }} {{ $item->unit }}</span><strong>MXN {{ number_format((float) $item->line_total, 0) }}</strong></div>
                             @endforeach
                         @endif
-                        <div class="customer-ticket-totals"><span>Total del ticket</span><strong>MXN {{ number_format($ticketTotal, 0) }}</strong><span>Total cobrado</span><strong>MXN {{ number_format($paidTotal, 0) }}</strong></div>
+                        <div class="customer-ticket-totals"><span>Precio de lista</span><strong>MXN {{ number_format($listedTotal, 0) }}</strong><span>Total final</span><strong>MXN {{ number_format($chargedTotal, 0) }}</strong><span>Pagos registrados</span><strong>MXN {{ number_format($paidTotal, 0) }}</strong></div>
                     </div>
                     <footer><a class="button button-secondary" href="{{ route('tickets.show', $ticket) }}">Abrir ticket</a><button class="button button-primary" type="button" data-close-customer-ticket>Cerrar</button></footer>
                 </section>

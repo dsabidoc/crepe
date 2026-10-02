@@ -13,7 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class PromotionService
 {
-    public function __construct(private InventoryService $inventory) {}
+    public function __construct(
+        private InventoryService $inventory,
+        private TicketService $tickets,
+    ) {}
 
     public function apply(Ticket $ticket, Promotion $promotion, int $actorId): void
     {
@@ -27,7 +30,7 @@ class PromotionService
             if ($ticket->adjustments->contains(fn ($adjustment): bool => ($adjustment->metadata['promotion_id'] ?? null) === $promotion->id)) {
                 throw ValidationException::withMessages(['promotion' => 'Esta promoción ya fue aplicada al ticket.']);
             }
-            if ($ticket->adjustments->contains(fn ($adjustment): bool => $adjustment->type === 'discount')) {
+            if ($ticket->adjustments->contains(fn ($adjustment): bool => isset($adjustment->metadata['promotion_id']))) {
                 throw ValidationException::withMessages(['promotion' => 'Este ticket ya tiene una promoción aplicada.']);
             }
             if ($promotion->one_per_customer && $ticket->customer_id && TicketAdjustment::query()->where('metadata->promotion_id', $promotion->id)->whereHas('ticket', fn ($query) => $query->where('customer_id', $ticket->customer_id))->exists()) {
@@ -59,6 +62,7 @@ class PromotionService
                 'metadata' => ['promotion_id' => $promotion->id, 'promotion_code' => $promotion->code, 'customer_id' => $ticket->customer_id],
             ]);
             $promotion->increment('usage_count');
+            $this->tickets->syncPricingTotals($ticket);
         });
     }
 
@@ -109,5 +113,6 @@ class PromotionService
             throw ValidationException::withMessages(['promotion' => 'La recompensa configurada no es válida.']);
         }
         $promotion->increment('usage_count');
+        $this->tickets->syncPricingTotals($ticket);
     }
 }

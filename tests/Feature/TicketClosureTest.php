@@ -153,4 +153,38 @@ class TicketClosureTest extends TestCase
         $this->assertSame(number_format($employeeRate, 2, '.', ''), $commission->rate_snapshot);
         $this->assertSame(number_format((float) $item->line_total * ($employeeRate / 100) + 50, 2, '.', ''), $commission->amount);
     }
+
+    public function test_manual_discount_reduces_the_charge_without_reducing_service_commission_base(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
+        $ticket = Ticket::query()->with('items')->where('status', 'open')->firstOrFail();
+        $cashRegister = CashRegister::query()->where('code', 'REC-01')->firstOrFail();
+        $listedTotal = (float) $ticket->listed_total;
+
+        $this->actingAs($administrator)->put(route('tickets.discounts.update', $ticket), [
+            'discount_amount' => 100,
+            'discount_reason' => 'Atención comercial',
+        ])->assertSessionHas('success', 'Descuento manual actualizado.');
+
+        $ticket->refresh();
+        $this->assertSame($listedTotal, (float) $ticket->listed_total);
+        $this->assertSame(100.0, (float) $ticket->discount_total);
+        $this->assertSame($listedTotal - 100, (float) $ticket->charged_total);
+
+        $this->actingAs($administrator)->post(route('tickets.payments.store', $ticket), [
+            'amount' => $ticket->balance,
+            'method' => 'card',
+            'cash_register_id' => $cashRegister->id,
+        ]);
+        $this->actingAs($administrator)->post(route('tickets.close', $ticket));
+
+        $item = $ticket->fresh('items')->items->firstWhere('type', 'service');
+        $commission = CommissionEntry::query()
+            ->where('ticket_id', $ticket->id)
+            ->where('ticket_item_id', $item->id)
+            ->firstOrFail();
+
+        $this->assertSame((float) $item->line_total, (float) $commission->base_amount);
+    }
 }

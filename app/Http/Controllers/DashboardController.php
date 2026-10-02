@@ -41,7 +41,11 @@ class DashboardController extends Controller
             });
         }
         $tickets = $ticketQuery->latest('opened_at')->get();
-        $salesToday = Ticket::query()->whereDate('opened_at', $today)->get()->sum(fn (Ticket $ticket) => $ticket->total);
+        $salesToday = (float) Ticket::query()
+            ->where('status', 'paid')
+            ->whereHas('payments', fn ($query) => $query->where('status', 'registered'))
+            ->whereDate('paid_at', $today)
+            ->sum('charged_total');
         $lowStock = InventoryBalance::query()
             ->select('inventory_balances.*')
             ->join('product_variants', 'product_variants.id', '=', 'inventory_balances.product_variant_id')

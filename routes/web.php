@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/tickets/{ticket}/estilistas/secundaria', [TicketController::class, 'addSecondaryStylist'])->middleware('can:tickets.update')->name('tickets.stylists.secondary.store');
     Route::delete('/tickets/{ticket}/estilistas/secundaria', [TicketController::class, 'removeSecondaryStylist'])->middleware('can:tickets.update')->name('tickets.stylists.secondary.destroy');
     Route::post('/tickets/{ticket}/productos', [TicketController::class, 'addProduct'])->middleware('can:tickets.update')->name('tickets.products.store');
+    Route::put('/tickets/{ticket}/descuento', [TicketController::class, 'updateDiscount'])->middleware('can:tickets.charge')->name('tickets.discounts.update');
     Route::post('/tickets/{ticket}/pagos', [TicketController::class, 'payment'])->middleware('can:tickets.charge')->name('tickets.payments.store');
     Route::post('/tickets/{ticket}/cerrar', [TicketController::class, 'close'])->middleware('can:tickets.charge')->name('tickets.close');
     Route::post('/tickets/{ticket}/reabrir', [TicketController::class, 'reopen'])->middleware('can:cash.authorize')->name('tickets.reopen');
