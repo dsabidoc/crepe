@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 
 class ReplaceProductCatalog extends Command
 {
-    protected $signature = 'crepe:replace-product-catalog {path : Ruta al CSV de productos} {--stock=3 : Existencia inicial por producto en Almacén}';
+    protected $signature = 'crepe:replace-product-catalog {path : Ruta al CSV de productos} {--stock=3 : Existencia inicial por producto en Almacén cuando el archivo no incluye ALMACÉN}';
 
     protected $description = 'Reemplaza el catálogo activo con un CSV y registra existencia inicial en Almacén';
 
@@ -32,7 +32,7 @@ class ReplaceProductCatalog extends Command
 
         $rows = $this->readRows($path);
         if ($rows === []) {
-            $this->error('El CSV no contiene productos con costo válido.');
+            $this->error('El CSV no contiene productos válidos.');
 
             return self::FAILURE;
         }
@@ -40,28 +40,33 @@ class ReplaceProductCatalog extends Command
         $stock = max(0, (float) $this->option('stock'));
         $warehouse = InventoryLocation::query()->firstOrCreate(['code' => 'ALM'], ['name' => 'Almacén', 'is_active' => true]);
         $actorId = User::query()->oldest('id')->value('id');
-        $category = ProductCategory::query()->firstOrCreate(['name' => 'Importado'], ['color' => '#B95070']);
+        $category = ProductCategory::query()->firstOrCreate(['name' => 'Catálogo final'], ['color' => '#B95070']);
+        $sourceSkus = collect($rows)->pluck('sku')->all();
+        $sourceBrandNames = collect($rows)->pluck('brand')->filter()->unique()->values();
+        $sourceSupplierNames = collect($rows)->pluck('supplier')->filter()->unique()->values();
         $skipped = $this->countRows($path) - count($rows);
 
-        DB::transaction(function () use ($actorId, $category, $rows, $stock, $warehouse): void {
+        DB::transaction(function () use ($actorId, $category, $rows, $sourceBrandNames, $sourceSkus, $sourceSupplierNames, $stock, $warehouse): void {
             Product::query()->where('status', 'active')->update(['status' => 'inactive']);
 
-            foreach ($rows as $row) {
-                $brand = $this->findOrCreateBrand($row['brand']);
-                $supplier = $row['supplier'] === '' ? null : $this->findOrCreateSupplier($row['supplier']);
-                $sku = 'CSV-'.Str::upper(Str::substr(sha1($row['name'].'|'.$row['brand'].'|'.$row['supplier']), 0, 12));
+            $brands = $this->resolveBrands($sourceBrandNames->all());
+            $suppliers = $this->resolveSuppliers($sourceSupplierNames->all());
 
-                $product = Product::query()->updateOrCreate(['sku' => $sku], [
+            foreach ($rows as $row) {
+                $brand = $row['brand'] === '' ? null : $brands[$this->normalizedKey($row['brand'])];
+                $supplier = $row['supplier'] === '' ? null : $suppliers[$this->normalizedKey($row['supplier'])];
+
+                $product = Product::query()->updateOrCreate(['sku' => $row['sku']], [
                     'product_category_id' => $category->id,
                     'product_brand_id' => $brand?->id,
                     'preferred_supplier_id' => $supplier?->id,
                     'name' => $row['name'],
                     'brand' => $row['brand'] !== '' ? $row['brand'] : null,
-                    'description' => 'Importado desde catálogo CSV.',
-                    'is_color_bar_usable' => false,
+                    'description' => 'Catálogo final. Ubicación original: '.$row['source_location'].'.',
+                    'is_color_bar_usable' => $row['is_color_bar_usable'],
                     'status' => 'active',
                 ]);
-                $variant = $product->variants()->firstOrNew(['sku' => $sku.'-STD']);
+                $variant = $product->variants()->firstOrNew(['sku' => $row['sku'].'-STD']);
                 $variant->fill([
                     'name' => 'Unidad',
                     'base_unit' => 'unidad',
@@ -73,19 +78,33 @@ class ReplaceProductCatalog extends Command
                 ]);
                 $variant->save();
 
-                $this->setOpeningStock($variant, $warehouse, $stock, $actorId);
+                $this->setOpeningStock($variant, $warehouse, $row['warehouse_stock'] ?? $stock, $actorId);
             }
+
+            Product::query()
+                ->where('status', 'inactive')
+                ->whereNotIn('sku', $sourceSkus)
+                ->update(['product_brand_id' => null, 'preferred_supplier_id' => null]);
+
+            ProductBrand::query()
+                ->whereNotIn('name', $sourceBrandNames)
+                ->doesntHave('products')
+                ->delete();
+
+            Supplier::query()
+                ->whereNotIn('name', $sourceSupplierNames)
+                ->update(['is_active' => false]);
         });
 
         $this->info('Catálogo activo reemplazado: '.count($rows).' productos importados.');
-        $this->line("Productos omitidos por costo vacío o inválido: {$skipped}.");
-        $this->line("Existencia inicial en Almacén: {$stock} unidades por producto.");
+        $this->line("Filas vacías o duplicadas omitidas: {$skipped}.");
+        $this->line('Existencias iniciales registradas en Almacén según el CSV.');
 
         return self::SUCCESS;
     }
 
     /**
-     * @return list<array{name:string,brand:string,supplier:string,cost:float,price:float,minimum:float,maximum:float}>
+     * @return list<array{name:string,brand:string,supplier:string,sku:string,cost:float,price:float,minimum:float,maximum:float,warehouse_stock:float,source_location:string,is_color_bar_usable:bool}>
      */
     private function readRows(string $path): array
     {
@@ -100,8 +119,9 @@ class ReplaceProductCatalog extends Command
 
             return [];
         }
-        $headers = array_map(fn ($header): string => strtoupper(trim((string) $header)), $headers);
+        $headers = array_map(fn ($header): string => $this->normalizedHeader((string) $header), $headers);
         $rows = [];
+        $seen = [];
 
         while (($values = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
             $row = array_combine($headers, array_slice(array_pad($values, count($headers), null), 0, count($headers)));
@@ -110,17 +130,29 @@ class ReplaceProductCatalog extends Command
             }
             $name = trim((string) ($row['PRODUCTO'] ?? ''));
             $cost = $this->amount($row['COSTO'] ?? null);
-            if ($name === '' || $cost <= 0) {
+            if ($name === '') {
                 continue;
             }
+            $brand = trim((string) ($row['MARCA'] ?? ''));
+            $supplier = trim((string) ($row['PROVEEDOR'] ?? ''));
+            $key = $this->normalizedKey($name).'|'.$this->normalizedKey($brand);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $sourceLocation = $this->normalizedHeader((string) ($row['UBICACION'] ?? ''));
             $rows[] = [
                 'name' => $name,
-                'brand' => trim((string) ($row['MARCA'] ?? '')),
-                'supplier' => trim((string) ($row['PROVEEDOR'] ?? '')),
+                'brand' => $brand,
+                'supplier' => $supplier,
+                'sku' => 'CSV-'.Str::upper(Str::substr(sha1($key), 0, 12)),
                 'cost' => $cost,
                 'price' => $this->amount($row['PRECIO'] ?? null),
                 'minimum' => max(0, $this->amount($row['MIN'] ?? null)),
                 'maximum' => max(0, $this->amount($row['MAX'] ?? null)),
+                'warehouse_stock' => array_key_exists('ALMACEN', $row) ? max(0, $this->amount($row['ALMACEN'])) : max(0, (float) $this->option('stock')),
+                'source_location' => $sourceLocation === '' ? 'SIN UBICACIÓN' : $sourceLocation,
+                'is_color_bar_usable' => in_array($sourceLocation, ['COLORBAR', 'AMBOS'], true),
             ];
         }
 
@@ -153,20 +185,52 @@ class ReplaceProductCatalog extends Command
         return is_numeric($digits) ? (float) $digits : 0.0;
     }
 
-    private function findOrCreateBrand(string $name): ?ProductBrand
+    /**
+     * @param  list<string>  $names
+     * @return array<string, ProductBrand>
+     */
+    private function resolveBrands(array $names): array
     {
-        if ($name === '') {
-            return null;
+        $brands = [];
+        foreach ($names as $name) {
+            $brand = ProductBrand::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first()
+                ?? ProductBrand::query()->create(['name' => $name, 'is_active' => true]);
+            if (! $brand->is_active) {
+                $brand->update(['is_active' => true]);
+            }
+            $brands[$this->normalizedKey($name)] = $brand;
         }
 
-        return ProductBrand::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first()
-            ?? ProductBrand::query()->create(['name' => $name, 'is_active' => true]);
+        return $brands;
     }
 
-    private function findOrCreateSupplier(string $name): ?Supplier
+    /**
+     * @param  list<string>  $names
+     * @return array<string, Supplier>
+     */
+    private function resolveSuppliers(array $names): array
     {
-        return Supplier::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first()
-            ?? Supplier::query()->create(['name' => $name, 'is_active' => true]);
+        $suppliers = [];
+        foreach ($names as $name) {
+            $supplier = Supplier::query()->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])->first()
+                ?? Supplier::query()->create(['name' => $name, 'is_active' => true]);
+            if (! $supplier->is_active) {
+                $supplier->update(['is_active' => true]);
+            }
+            $suppliers[$this->normalizedKey($name)] = $supplier;
+        }
+
+        return $suppliers;
+    }
+
+    private function normalizedHeader(string $value): string
+    {
+        return Str::upper(Str::ascii(trim($value)));
+    }
+
+    private function normalizedKey(string $value): string
+    {
+        return Str::lower(Str::ascii(trim($value)));
     }
 
     private function setOpeningStock(ProductVariant $variant, InventoryLocation $warehouse, float $stock, ?int $actorId): void
