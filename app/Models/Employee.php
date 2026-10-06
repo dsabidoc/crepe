@@ -12,14 +12,16 @@ class Employee extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'first_name', 'last_name', 'email', 'phone', 'position',
+        'user_id', 'check_pin', 'first_name', 'last_name', 'email', 'phone', 'position',
         'hired_at', 'salary', 'salary_type', 'is_bookable', 'status', 'commission_rate', 'product_commission_rate', 'notes',
+        'requires_check_in',
     ];
 
     protected function casts(): array
     {
         return [
             'is_bookable' => 'boolean',
+            'requires_check_in' => 'boolean',
             'commission_rate' => 'decimal:2',
             'product_commission_rate' => 'decimal:2',
             'hired_at' => 'date',
@@ -45,5 +47,15 @@ class Employee extends Model
     public function timeBlocks(): HasMany
     {
         return $this->hasMany(EmployeeTimeBlock::class);
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(EmployeeAttendance::class);
+    }
+
+    public function attendanceIncidents(): HasMany
+    {
+        return $this->hasMany(AttendanceIncident::class);
     }
 }

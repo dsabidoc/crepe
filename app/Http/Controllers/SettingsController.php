@@ -16,6 +16,10 @@ class SettingsController extends Controller
     {
         return view('settings.index', [
             'openingFloat' => (float) AppSetting::value('cash.opening_float', 1250),
+            'attendanceStartsAt' => AppSetting::value('attendance.starts_at', '09:00'),
+            'attendanceEndsAt' => AppSetting::value('attendance.ends_at', '17:00'),
+            'attendanceToleranceMinutes' => (int) AppSetting::value('attendance.tolerance_minutes', 10),
+            'attendanceTardinessPenalty' => (float) AppSetting::value('attendance.tardiness_penalty', 50),
             'jobPositions' => JobPosition::query()->active()->orderBy('sort_order')->orderBy('name')->get(),
             'productCommissionRules' => ProductCommissionRule::query()->where('is_active', true)->orderBy('minimum_sales')->get(),
         ]);
@@ -27,6 +31,22 @@ class SettingsController extends Controller
         AppSetting::put('cash.opening_float', number_format((float) $data['opening_float'], 2, '.', ''));
 
         return back()->with('success', 'Configuración de cajas actualizada.');
+    }
+
+    public function updateAttendance(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'starts_at' => ['required', 'date_format:H:i'],
+            'ends_at' => ['required', 'date_format:H:i', 'after:starts_at'],
+            'tolerance_minutes' => ['required', 'integer', 'min:0', 'max:120'],
+            'tardiness_penalty' => ['required', 'numeric', 'min:0', 'max:10000'],
+        ]);
+        AppSetting::put('attendance.starts_at', $data['starts_at']);
+        AppSetting::put('attendance.ends_at', $data['ends_at']);
+        AppSetting::put('attendance.tolerance_minutes', $data['tolerance_minutes']);
+        AppSetting::put('attendance.tardiness_penalty', number_format((float) $data['tardiness_penalty'], 2, '.', ''));
+
+        return back()->with('success', 'Configuración de Checks actualizada.');
     }
 
     public function storeJobPosition(Request $request): RedirectResponse

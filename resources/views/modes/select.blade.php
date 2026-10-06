@@ -10,6 +10,7 @@
             'almacen' => ['key' => '05', 'description' => 'Productos, existencias, movimientos y compras.', 'icon' => '▦'],
             'promos' => ['key' => '06', 'description' => 'Descuentos y promociones para aplicar en los tickets.', 'icon' => '%'],
             'configuracion' => ['key' => '07', 'description' => 'Valores generales, cajas y reglas del sistema.', 'icon' => '⚙'],
+            'checks' => ['key' => '08', 'description' => 'Entradas, salidas e incidencias del equipo.', 'icon' => '✓'],
         ])
         <div class="mode-grid">@foreach($modes as $key => $mode) @continue(!isset($details[$key]))<form method="POST" action="{{ route('modes.store') }}">@csrf<input type="hidden" name="mode" value="{{ $key }}"><button class="mode-card" type="submit"><span class="mode-number">{{ $details[$key]['key'] }}</span><span class="mode-icon">{{ $details[$key]['icon'] }}</span><span class="mode-card-copy"><strong>{{ $mode['title'] }}</strong><small>{{ $details[$key]['description'] }}</small></span><span class="mode-arrow">→</span></button></form>@endforeach</div>
     </section>

@@ -121,12 +121,16 @@ class EmployeeController extends Controller
             'commission_rate' => ['nullable', 'numeric', 'between:0,100'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'is_bookable' => ['nullable', 'boolean'], 'status' => ['required', 'in:active,inactive'],
+            'requires_check_in' => ['nullable', 'boolean'],
+            'check_pin' => ['nullable', 'digits:4', Rule::unique('employees', 'check_pin')->ignore($employee?->id)],
             'system_access_enabled' => ['nullable', 'boolean'],
             'system_email' => [Rule::requiredIf($systemAccessEnabled), 'nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($employee?->user_id)],
             'system_role' => [Rule::requiredIf($systemAccessEnabled), 'nullable', Rule::in($this->systemRoles())],
             'system_password' => [Rule::requiredIf($systemAccessEnabled && $employee?->user_id === null), 'nullable', 'string', 'min:8', 'max:255', 'confirmed'],
         ]);
         $data['is_bookable'] = $request->boolean('is_bookable');
+        $data['requires_check_in'] = $request->boolean('requires_check_in');
+        $data['check_pin'] = $data['requires_check_in'] ? ($data['check_pin'] ?: null) : null;
         $data['system_access_enabled'] = $systemAccessEnabled;
 
         return $data;
@@ -140,6 +144,9 @@ class EmployeeController extends Controller
         $employeeData = Arr::except($data, ['system_access_enabled', 'system_email', 'system_role', 'system_password', 'system_password_confirmation']);
         $employee ??= new Employee;
         $employee->fill($employeeData);
+        if ($employee->requires_check_in && $employee->check_pin === null) {
+            $employee->check_pin = $this->nextCheckPin();
+        }
 
         $systemAccessEnabled = $data['system_access_enabled'] && $employee->status === 'active';
         if ($systemAccessEnabled) {
@@ -182,5 +189,14 @@ class EmployeeController extends Controller
     private function jobPositions(): Collection
     {
         return JobPosition::query()->active()->orderBy('sort_order')->orderBy('name')->get();
+    }
+
+    private function nextCheckPin(): string
+    {
+        do {
+            $pin = (string) random_int(1000, 9999);
+        } while (Employee::query()->where('check_pin', $pin)->exists());
+
+        return $pin;
     }
 }

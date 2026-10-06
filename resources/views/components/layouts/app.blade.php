@@ -1,6 +1,6 @@
 @props(['title' => 'CREPÉ'])
 @php($activeMode = session('crepe.mode', 'administracion'))
-@php($modeTitle = ['administracion' => 'Administración', 'recepcion' => 'Recepción', 'color-bar' => 'Color Bar', 'almacen' => 'Almacén', 'finanzas' => 'Finanzas', 'promos' => 'Promos', 'configuracion' => 'Configuración'][$activeMode] ?? 'Administración')
+@php($modeTitle = ['administracion' => 'Administración', 'recepcion' => 'Recepción', 'color-bar' => 'Color Bar', 'almacen' => 'Almacén', 'finanzas' => 'Finanzas', 'promos' => 'Promos', 'configuracion' => 'Configuración', 'checks' => 'Checks'][$activeMode] ?? 'Administración')
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ $title }} · CREPÉ</title>@vite(['resources/css/app.css', 'resources/js/app.js'])</head>
@@ -15,6 +15,8 @@
 <a class="{{ request()->routeIs('promotions.*') ? 'is-active' : '' }}" href="{{ route('promotions.index') }}">Promos</a><a class="{{ request()->routeIs('tickets.*') ? 'is-active' : '' }}" href="{{ route('tickets.index') }}">Tickets</a>
 @elseif($activeMode === 'configuracion')
 <a class="{{ request()->routeIs('settings.*') ? 'is-active' : '' }}" href="{{ route('settings.edit') }}">Configuración</a>
+@elseif($activeMode === 'checks')
+<a class="{{ request()->routeIs('attendance.*') ? 'is-active' : '' }}" href="{{ route('attendance.index') }}">Checks</a>@can('settings.manage')<a class="{{ request()->routeIs('attendance.*') ? 'is-active' : '' }}" href="{{ route('attendance.index') }}#incidencias">Incidencias</a><a href="{{ route('settings.edit') }}">Configuración</a>@endcan
 @elseif($activeMode === 'finanzas')
 <a class="{{ request()->query('view', 'dashboard') === 'dashboard' ? 'is-active' : '' }}" href="{{ route('finance.index', ['view' => 'dashboard']) }}">Resumen</a><a class="{{ request()->query('view') === 'movements' ? 'is-active' : '' }}" href="{{ route('finance.index', ['view' => 'movements']) }}">Movimientos</a><a class="{{ request()->routeIs('cash.*') ? 'is-active' : '' }}" href="{{ route('cash.index') }}">Cortes</a><a class="{{ request()->query('view') === 'accounts' ? 'is-active' : '' }}" href="{{ route('finance.index', ['view' => 'accounts']) }}">Cuentas</a><a class="{{ request()->routeIs('payables.*') ? 'is-active' : '' }}" href="{{ route('payables.index') }}">CxP</a><a class="{{ request()->routeIs('payroll.*') ? 'is-active' : '' }}" href="{{ route('payroll.index') }}">Nómina</a><a class="{{ request()->query('view') === 'catalogs' ? 'is-active' : '' }}" href="{{ route('finance.index', ['view' => 'catalogs']) }}">Catálogos</a>
 @else

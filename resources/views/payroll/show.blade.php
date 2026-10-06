@@ -65,6 +65,7 @@
                         <span>Infonavit <strong>${{ number_format((float) $item->infonavit_deduction, 2) }}</strong></span>
                         <span>Otros descuentos <strong>${{ number_format((float) $item->other_deductions, 2) }}</strong></span>
                         <span>Retardos <strong>${{ number_format((float) $item->tardiness_deduction, 2) }}</strong></span>
+                        <span>Faltas <strong>${{ number_format((float) $item->absence_deduction, 2) }}</strong></span>
                         <button class="button button-secondary payroll-discount-edit" type="button" data-employee="{{ $item->id }}" data-type="infonavit_deduction" data-amount="{{ $item->infonavit_deduction }}">Actualizar descuentos</button>
                     </div>
                 </article>

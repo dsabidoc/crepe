@@ -23,6 +23,7 @@ class PayrollReceiptPdfService
             ['Descuento Infonavit', -$payrollItem->infonavit_deduction],
             ['Otros descuentos', -$payrollItem->other_deductions],
             ['Retardos', -$payrollItem->tardiness_deduction],
+            ['Faltas', -$payrollItem->absence_deduction],
         ];
 
         $content = [

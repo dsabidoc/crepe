@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AttendanceIncident;
 use App\Models\CommissionEntry;
 use App\Models\Employee;
 use App\Models\FinanceAccount;
@@ -10,6 +11,7 @@ use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\ProductCommissionRule;
 use App\Models\TicketItem;
+use App\Services\AttendanceService;
 use App\Services\PayrollReceiptPdfService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -42,7 +44,7 @@ class PayrollController extends Controller
         return view('payroll.index', compact('from', 'payrollRuns', 'productCommissions', 'to'));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, AttendanceService $attendance): RedirectResponse
     {
         $data = $request->validate(['period_starts_on' => ['required', 'date'], 'period_ends_on' => ['required', 'date', 'after_or_equal:period_starts_on'], 'includes_product_commissions' => ['nullable', 'boolean']]);
         $hasOverlappingPayroll = PayrollRun::query()
@@ -54,7 +56,8 @@ class PayrollController extends Controller
                 'period_starts_on' => 'Ya existe una nómina que se cruza con este periodo.',
             ]);
         }
-        $payrollRun = DB::transaction(function () use ($data, $request): PayrollRun {
+        $attendance->ensurePayrollIncidentsResolved(Carbon::parse($data['period_starts_on']), Carbon::parse($data['period_ends_on']));
+        $payrollRun = DB::transaction(function () use ($attendance, $data, $request): PayrollRun {
             $payrollYear = Carbon::parse($data['period_ends_on'])->year;
             $payrollNumber = ((int) PayrollRun::query()->where('payroll_year', $payrollYear)->lockForUpdate()->max('payroll_number')) + 1;
             $payrollRun = PayrollRun::query()->create([...$data, 'payroll_year' => $payrollYear, 'payroll_number' => $payrollNumber, 'includes_product_commissions' => (bool) ($data['includes_product_commissions'] ?? false), 'generated_by' => $request->user()->id]);
@@ -67,7 +70,9 @@ class PayrollController extends Controller
                 }
                 $productEntries = $payrollRun->includes_product_commissions ? $this->commissionEntriesFor($employee, $payrollRun, 'product')->lockForUpdate()->get() : collect();
                 $basePay = $this->weeklySalary($employee);
-                $payrollItem = $payrollRun->items()->create(['employee_id' => $employee->id, 'employee_name_snapshot' => $employee->full_name, 'base_pay' => $basePay, 'service_commissions' => $serviceEntries->sum('amount'), 'product_commissions' => $productEntries->sum('amount'), 'total' => $basePay + $serviceEntries->sum('amount') + $productEntries->sum('amount')]);
+                $tardinessDeduction = $attendance->tardinessDeduction($employee, $payrollRun->period_starts_on, $payrollRun->period_ends_on);
+                $absenceDeduction = $attendance->absenceDeduction($employee, $payrollRun, $basePay);
+                $payrollItem = $payrollRun->items()->create(['employee_id' => $employee->id, 'employee_name_snapshot' => $employee->full_name, 'base_pay' => $basePay, 'service_commissions' => $serviceEntries->sum('amount'), 'product_commissions' => $productEntries->sum('amount'), 'tardiness_deduction' => $tardinessDeduction, 'absence_deduction' => $absenceDeduction, 'total' => $basePay + $serviceEntries->sum('amount') + $productEntries->sum('amount') - $tardinessDeduction - $absenceDeduction]);
                 CommissionEntry::query()->whereKey($serviceEntries->pluck('id')->merge($productEntries->pluck('id')))->update(['payroll_item_id' => $payrollItem->id, 'status' => 'settled']);
             }
 
@@ -120,6 +125,7 @@ class PayrollController extends Controller
                 ->get(['id', 'evidence_path']);
 
             $withdrawals->each->delete();
+            AttendanceIncident::query()->whereBelongsTo($run)->update(['payroll_run_id' => null, 'deduction_amount' => 0]);
             $run->delete();
 
             return $withdrawals->pluck('evidence_path')->filter()->values()->all();
@@ -177,7 +183,7 @@ class PayrollController extends Controller
         abort_unless($payrollItem->payroll_run_id === $payrollRun->id, 404);
         $data = $request->validate(['infonavit_deduction' => ['nullable', 'numeric', 'min:0'], 'other_deductions' => ['nullable', 'numeric', 'min:0'], 'tardiness_deduction' => ['nullable', 'numeric', 'min:0']]);
         $data = array_map(static fn ($value): float => (float) ($value ?? 0), $data);
-        $total = (float) $payrollItem->base_pay + (float) $payrollItem->service_commissions + (float) $payrollItem->product_commissions - $data['infonavit_deduction'] - $data['other_deductions'] - $data['tardiness_deduction'];
+        $total = (float) $payrollItem->base_pay + (float) $payrollItem->service_commissions + (float) $payrollItem->product_commissions - $data['infonavit_deduction'] - $data['other_deductions'] - $data['tardiness_deduction'] - (float) $payrollItem->absence_deduction;
         if ($total < 0) {
             throw ValidationException::withMessages([
                 'other_deductions' => 'Los descuentos no pueden exceder el total de la nómina.',
@@ -190,7 +196,7 @@ class PayrollController extends Controller
 
     private function recalculatePayrollItem(PayrollItem $payrollItem): void
     {
-        $total = (float) $payrollItem->base_pay + (float) $payrollItem->service_commissions + (float) $payrollItem->product_commissions - (float) $payrollItem->infonavit_deduction - (float) $payrollItem->other_deductions - (float) $payrollItem->tardiness_deduction;
+        $total = (float) $payrollItem->base_pay + (float) $payrollItem->service_commissions + (float) $payrollItem->product_commissions - (float) $payrollItem->infonavit_deduction - (float) $payrollItem->other_deductions - (float) $payrollItem->tardiness_deduction - (float) $payrollItem->absence_deduction;
         if ($total < 0) {
             throw ValidationException::withMessages(['amount' => 'Los descuentos no pueden exceder el total de la nómina.']);
         }

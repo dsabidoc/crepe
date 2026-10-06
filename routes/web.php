@@ -3,6 +3,7 @@
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CashController;
 use App\Http\Controllers\ColorBarController;
@@ -102,6 +103,9 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/nomina/{payrollRun}/descuentos', [PayrollController::class, 'updateDiscount'])->middleware('can:finance.manage')->name('payroll.discounts.update');
     Route::put('/nomina/{payrollRun}/personas/{payrollItem}', [PayrollController::class, 'updateItem'])->middleware('can:finance.manage')->name('payroll.items.update');
     Route::get('/nomina/{payrollRun}/personas/{payrollItem}/recibo', [PayrollController::class, 'downloadReceipt'])->middleware('can:finance.view')->name('payroll.items.receipt');
+    Route::get('/checks', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::post('/checks/registrar', [AttendanceController::class, 'register'])->name('attendance.register');
+    Route::put('/checks/incidencias/{attendanceIncident}', [AttendanceController::class, 'resolve'])->middleware('can:settings.manage')->name('attendance.incidents.resolve');
     Route::resource('clientas', CustomerController::class)->middleware('can:customers.view')->parameters(['clientas' => 'customer'])->names('customers');
     Route::resource('equipo', EmployeeController::class)->middleware('can:settings.manage')->parameters(['equipo' => 'employee'])->names('employees');
     Route::resource('servicios', SalonServiceController::class)->middleware('can:settings.manage')->parameters(['servicios' => 'service'])->names('services');
@@ -113,6 +117,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/promos/{promotion}/aplicar/tickets/{ticket}', [PromotionController::class, 'apply'])->middleware('can:tickets.update')->name('promotions.apply');
     Route::get('/configuracion', [SettingsController::class, 'edit'])->middleware('can:settings.manage')->name('settings.edit');
     Route::put('/configuracion', [SettingsController::class, 'update'])->middleware('can:settings.manage')->name('settings.update');
+    Route::put('/configuracion/checks', [SettingsController::class, 'updateAttendance'])->middleware('can:settings.manage')->name('settings.attendance.update');
     Route::post('/configuracion/catalogos/puestos', [SettingsController::class, 'storeJobPosition'])->middleware('can:settings.manage')->name('settings.job-positions.store');
     Route::post('/configuracion/comisiones-producto', [SettingsController::class, 'storeProductCommissionRule'])->middleware('can:settings.manage')->name('settings.product-commission-rules.store');
     Route::put('/configuracion/comisiones-producto/{productCommissionRule}', [SettingsController::class, 'updateProductCommissionRule'])->middleware('can:settings.manage')->name('settings.product-commission-rules.update');

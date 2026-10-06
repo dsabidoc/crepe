@@ -16,6 +16,7 @@ class ModeController extends Controller
         'almacen' => ['permission' => 'mode.almacen.access', 'route' => 'workspace', 'title' => 'Almacén'],
         'promos' => ['permission' => 'settings.manage', 'route' => 'promotions.index', 'title' => 'Promos'],
         'configuracion' => ['permission' => 'settings.manage', 'route' => 'settings.edit', 'title' => 'Configuración'],
+        'checks' => ['permission' => 'mode.reception.access', 'route' => 'attendance.index', 'title' => 'Checks'],
     ];
 
     public function index(Request $request): View

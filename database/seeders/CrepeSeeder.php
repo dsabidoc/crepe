@@ -90,17 +90,17 @@ class CrepeSeeder extends Seeder
         Employee::query()->updateOrCreate(['email' => 'ana@crepe.mx'], [
             'first_name' => 'Ana', 'last_name' => 'Torres', 'email' => 'ana@crepe.mx',
             'phone' => '999 210 1840', 'position' => 'Estilista senior', 'is_bookable' => true,
-            'status' => 'active', 'commission_rate' => 20,
+            'status' => 'active', 'commission_rate' => 20, 'requires_check_in' => true, 'check_pin' => '1101',
         ]);
         Employee::query()->updateOrCreate(['email' => 'sofia@crepe.mx'], [
             'first_name' => 'Sofía', 'last_name' => 'Herrera', 'email' => 'sofia@crepe.mx',
             'phone' => '999 365 7201', 'position' => 'Colorista', 'is_bookable' => true,
-            'status' => 'active', 'commission_rate' => 18,
+            'status' => 'active', 'commission_rate' => 18, 'requires_check_in' => true, 'check_pin' => '1102',
         ]);
         Employee::query()->updateOrCreate(['email' => 'laura@crepe.mx'], [
             'first_name' => 'Laura', 'last_name' => 'Méndez', 'email' => 'laura@crepe.mx',
             'phone' => '999 444 8912', 'position' => 'Recepción', 'is_bookable' => false,
-            'status' => 'active', 'commission_rate' => null,
+            'status' => 'active', 'commission_rate' => null, 'requires_check_in' => true, 'check_pin' => '1103',
         ]);
 
         foreach ([['Corte y peinado', '#2F63F5', 1], ['Coloración', '#9A5EEA', 2], ['Tratamientos', '#1A9B74', 3]] as [$name, $color, $sort]) {

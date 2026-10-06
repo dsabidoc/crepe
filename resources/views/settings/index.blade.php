@@ -9,6 +9,13 @@
             <footer><button class="button button-primary" type="submit">Guardar configuración</button></footer>
         </form>
     </section>
+    <section class="surface settings-card">
+        <header><div><p class="eyebrow">CHECKS</p><h2>Horario y retardos</h2><p>Aplican a quienes tienen activo el registro de entrada y salida.</p></div></header>
+        <form method="POST" action="{{ route('settings.attendance.update') }}" class="settings-form">@csrf @method('PUT')
+            <div class="field-grid"><label><span>Hora de entrada</span><input name="starts_at" type="time" value="{{ $attendanceStartsAt }}" required></label><label><span>Tolerancia (minutos)</span><input name="tolerance_minutes" type="number" min="0" max="120" value="{{ $attendanceToleranceMinutes }}" required></label><label><span>Hora de salida</span><input name="ends_at" type="time" value="{{ $attendanceEndsAt }}" required></label><label><span>Descuento por retardo</span><input name="tardiness_penalty" type="number" min="0" step=".01" value="{{ number_format($attendanceTardinessPenalty, 2, '.', '') }}" required></label></div>
+            <footer><button class="button button-primary" type="submit">Guardar Checks</button></footer>
+        </form>
+    </section>
     <section class="surface settings-card settings-catalog-card">
         <header><div><p class="eyebrow">CATÁLOGOS</p><h2>Puestos del equipo</h2><p>Define los puestos disponibles al dar de alta o editar a una colaboradora.</p></div></header>
         <form method="POST" action="{{ route('settings.job-positions.store') }}" class="settings-catalog-form">

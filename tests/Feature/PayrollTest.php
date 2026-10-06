@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AppSetting;
 use App\Models\CommissionEntry;
 use App\Models\Employee;
 use App\Models\FinanceAccount;
@@ -25,6 +26,7 @@ class PayrollTest extends TestCase
     {
         Storage::fake('public');
         $this->seed(CrepeSeeder::class);
+        AppSetting::put('attendance.tracking_starts_on', now()->addDay()->toDateString());
         $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $employee = Employee::query()->where('email', 'ana@crepe.mx')->firstOrFail();
         $employee->update(['salary' => 700, 'salary_type' => 'weekly']);
@@ -87,6 +89,7 @@ class PayrollTest extends TestCase
     public function test_reception_cannot_access_payroll(): void
     {
         $this->seed(CrepeSeeder::class);
+        AppSetting::put('attendance.tracking_starts_on', now()->addDay()->toDateString());
         $reception = User::factory()->create();
         $reception->assignRole('Recepción');
 
@@ -97,6 +100,7 @@ class PayrollTest extends TestCase
     {
         Storage::fake('public');
         $this->seed(CrepeSeeder::class);
+        AppSetting::put('attendance.tracking_starts_on', now()->addDay()->toDateString());
         $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $employee = Employee::query()->where('email', 'ana@crepe.mx')->firstOrFail();
         $employee->update(['salary' => 700, 'salary_type' => 'weekly']);
