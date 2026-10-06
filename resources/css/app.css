@@ -410,6 +410,12 @@
 .request-filter-bar,.color-ticket-filter,.promotions-filter-bar { padding:12px 20px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:#fff; }
 .promotions-filter-bar { border-top:0; }
 .color-ticket-filter { border-top:0; }
+.app-body .request-list > .request-filter-bar {
+    margin:0;
+    padding:14px 24px 16px;
+    border:0;
+    background:transparent;
+}
 .cash-filter-bar { justify-content:flex-start; }
 .cash-filter-bar select { min-width:140px; }
 .app-body .cash-filter-bar { background:transparent; border-color:transparent; box-shadow:none; padding-left:0; padding-right:0; }
