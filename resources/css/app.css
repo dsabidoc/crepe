@@ -1822,6 +1822,61 @@ dialog textarea {
     justify-self:center;
     place-items:center;
 }
+.app-body .list-filter-bar > .check-filter {
+    position:relative;
+    display:inline-flex;
+    align-items:center;
+    gap:9px;
+    flex:0 0 auto;
+    width:auto;
+    max-width:none;
+    min-height:44px;
+    padding:0 14px;
+    border:1px solid var(--line);
+    border-radius:var(--control-radius);
+    color:#4b5563;
+    background:#fff;
+    font-size:13px;
+    font-weight:650;
+    white-space:nowrap;
+}
+.app-body .list-filter-bar > .check-filter input {
+    position:absolute;
+    width:1px;
+    height:1px;
+    min-height:0;
+    margin:0;
+    opacity:0;
+}
+.app-body .list-filter-bar > .check-filter-control {
+    display:grid;
+    flex:0 0 18px;
+    width:18px;
+    height:18px;
+    place-items:center;
+    border:1px solid #b9c3d1;
+    border-radius:5px;
+    background:#fff;
+}
+.app-body .list-filter-bar > .check-filter input:checked + .check-filter-control {
+    border-color:#b95070;
+    background:#b95070;
+}
+.app-body .list-filter-bar > .check-filter input:checked + .check-filter-control::after {
+    content:'✓';
+    color:#fff;
+    font-size:12px;
+    font-weight:800;
+}
+.app-body .list-filter-bar > .check-filter:hover,
+.app-body .list-filter-bar > .check-filter:focus-within {
+    border-color:#c88499;
+    box-shadow:0 0 0 3px rgba(185,80,112,.1);
+}
+.app-body .list-filter-bar > .check-filter input:focus-visible + .check-filter-control {
+    outline:2px solid #b95070;
+    outline-offset:2px;
+}
 .app-body .purchase-order-create-section .purchase-order-remove {
     width:44px;
     min-width:44px;
