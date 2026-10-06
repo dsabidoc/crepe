@@ -61,14 +61,15 @@ class InventoryRequestTest extends TestCase
 
         $this->actingAs($warehouse)
             ->withSession(['crepe.mode' => 'almacen'])
-            ->get(route('inventory.requests.index'))
+            ->get(route('inventory.requests.index', ['location' => 'ALM']))
             ->assertOk()
             ->assertSee('Solicitudes por atender');
 
         $this->actingAs($warehouse)
             ->withSession(['crepe.mode' => 'almacen'])
             ->get(route('inventory.requests.create', ['location' => 'REC']))
-            ->assertForbidden();
+            ->assertForbidden()
+            ->assertSee('Esta área no está disponible para tu perfil.');
     }
 
     public function test_inventory_requests_use_product_units_and_convert_to_base_stock_on_delivery(): void

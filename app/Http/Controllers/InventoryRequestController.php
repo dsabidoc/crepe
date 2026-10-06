@@ -178,6 +178,10 @@ class InventoryRequestController extends Controller
             return null;
         }
         if ($isWarehouse) {
+            if (! $required) {
+                return null;
+            }
+
             abort(403, 'Almacén sólo puede procesar solicitudes existentes.');
         }
         abort_unless(in_array($code, ['REC', 'CB'], true), 422, 'Selecciona una ubicación solicitante válida.');
