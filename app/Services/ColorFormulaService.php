@@ -299,7 +299,7 @@ class ColorFormulaService
                 throw ValidationException::withMessages(['items' => 'Sólo puedes usar productos activos de Color Bar.']);
             }
 
-            if ($variant->color_bar_pricing_type === 'fixed') {
+            if ($variant->color_bar_pricing_type === 'fixed' || ($variant->color_bar_pricing_type === 'both' && $item['unit'] === 'unidad')) {
                 $fixedPrice = (float) $variant->color_bar_sale_price;
 
                 $preparedItems[] = [

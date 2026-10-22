@@ -77,14 +77,14 @@ class ColorBarController extends Controller
                 $query->where(fn ($fixedPrice) => $fixedPrice
                     ->where('color_bar_pricing_type', 'fixed'))
                     ->orWhere(fn ($multiplier) => $multiplier
-                        ->where('color_bar_pricing_type', 'multiplier')
+                        ->whereIn('color_bar_pricing_type', ['multiplier', 'both'])
                         ->whereHas('product.category', fn ($categories) => $categories->whereNotNull('color_bar_multiplier')));
             })
             ->orderBy('product_id')
             ->orderBy('name')
             ->get();
         $recentFormulas = ColorFormula::query()
-            ->with(['ticket.customer', 'items.variant.product.preferredSupplier'])
+            ->with(['ticket.customer', 'items.variant.product.preferredSupplier', 'items.variant.product.category'])
             ->where('inventory_location_id', $location->id)
             ->where('status', 'confirmed')
             ->whereIn('ticket_id', $tickets->pluck('id'))
@@ -118,7 +118,10 @@ class ColorBarController extends Controller
             'name' => $item->variant->product->name,
             'brand' => $item->variant->product->brand,
             'supplier' => $item->variant->product->preferredSupplier?->name,
-            'pricingType' => $item->unit === 'g' ? 'multiplier' : $item->variant->color_bar_pricing_type,
+            'pricingType' => $item->unit === 'g' ? 'multiplier' : 'fixed',
+            'availablePricingType' => $item->variant->color_bar_pricing_type,
+            'rate' => (float) ($item->variant->product->category?->color_bar_multiplier ?? 0),
+            'fixedPrice' => (float) $item->variant->color_bar_sale_price,
             'unitPrice' => (float) ($item->sale_price ?? 0),
             'quantity' => (float) $item->quantity,
             'unit' => $item->unit,
@@ -135,14 +138,17 @@ class ColorBarController extends Controller
                 if ($variant === null || $variant->product === null) {
                     return null;
                 }
-                $usesMultiplier = $variant->color_bar_pricing_type === 'multiplier';
+                $usesMultiplier = $variant->color_bar_pricing_type === 'multiplier' || ($variant->color_bar_pricing_type === 'both' && ($item['unit'] ?? null) === 'g');
 
                 return [
                     'variantId' => $variant->id,
                     'name' => $variant->product->name,
                     'brand' => $variant->product->brand,
                     'supplier' => $variant->product->preferredSupplier?->name,
-                    'pricingType' => $variant->color_bar_pricing_type,
+                    'pricingType' => $usesMultiplier ? 'multiplier' : 'fixed',
+                    'availablePricingType' => $variant->color_bar_pricing_type,
+                    'rate' => (float) ($variant->product->category?->color_bar_multiplier ?? 0),
+                    'fixedPrice' => (float) $variant->color_bar_sale_price,
                     'unitPrice' => (float) ($usesMultiplier ? $variant->product->category?->color_bar_multiplier : $variant->color_bar_sale_price),
                     'quantity' => is_scalar($item['quantity'] ?? null) ? (float) $item['quantity'] : 0,
                     'unit' => $usesMultiplier ? 'g' : 'unidad',
@@ -154,7 +160,7 @@ class ColorBarController extends Controller
         $canViewPrices = $request->user()->can('tickets.charge');
         if (! $canViewPrices) {
             $initialFormulaItems = $initialFormulaItems->map(function (array $item): array {
-                unset($item['unitPrice']);
+                unset($item['unitPrice'], $item['rate'], $item['fixedPrice']);
 
                 return $item;
             });

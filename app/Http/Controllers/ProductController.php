@@ -158,7 +158,7 @@ class ProductController extends Controller
             'is_color_bar_usable' => ['nullable', 'boolean'], 'is_color_bar_supply' => ['nullable', 'boolean'], 'is_reception_usable' => ['nullable', 'boolean'], 'status' => ['required', Rule::in(['active', 'inactive'])],
             'variant_name' => ['required', 'string', 'max:150'], 'variant_sku' => ['nullable', 'string', 'max:100', Rule::unique('product_variants', 'sku')->ignore($variant)],
             'base_unit' => ['required', Rule::in(['g', 'ml', 'l', 'unidad'])], 'content_quantity' => ['required', 'numeric', 'gt:0'],
-            'cost' => ['required', 'numeric', 'min:0'], 'sale_price' => ['nullable', 'numeric', 'min:0'], 'color_bar_pricing_type' => ['nullable', Rule::in(['fixed', 'multiplier'])], 'color_bar_sale_price' => ['nullable', 'numeric', 'min:0'], 'minimum_stock' => ['required', 'numeric', 'min:0'], 'maximum_stock' => ['nullable', 'numeric', 'gte:minimum_stock'],
+            'cost' => ['required', 'numeric', 'min:0'], 'sale_price' => ['nullable', 'numeric', 'min:0'], 'color_bar_pricing_type' => ['nullable', Rule::in(['fixed', 'multiplier', 'both'])], 'color_bar_sale_price' => ['nullable', 'numeric', 'min:0'], 'minimum_stock' => ['required', 'numeric', 'min:0'], 'maximum_stock' => ['nullable', 'numeric', 'gte:minimum_stock'],
             'photos' => ['nullable', 'array', 'max:5'], 'photos.*' => ['nullable', File::image()->max('8mb')],
         ]);
         $data['is_color_bar_usable'] = $request->boolean('is_color_bar_usable');
@@ -166,31 +166,24 @@ class ProductController extends Controller
             ? $request->boolean('is_color_bar_supply')
             : ($product?->isColorBarSupply() ?? $data['is_color_bar_usable']);
         $data['is_reception_usable'] = $request->boolean('is_reception_usable');
-        $data['sale_price'] = $data['sale_price'] ?? 0;
-        $data['color_bar_pricing_type'] = $data['color_bar_pricing_type'] ?? 'fixed';
-        $data['color_bar_sale_price'] = $data['color_bar_sale_price'] ?? 0;
+        $data['sale_price'] = $data['sale_price'] ?? $variant?->sale_price ?? 0;
+        $data['color_bar_pricing_type'] = $data['color_bar_pricing_type'] ?? $variant?->color_bar_pricing_type ?? 'fixed';
+        $data['color_bar_sale_price'] = $data['color_bar_sale_price'] ?? $variant?->color_bar_sale_price ?? 0;
 
         if (! $data['is_color_bar_usable'] && ! $data['is_reception_usable'] && ! $data['is_color_bar_supply']) {
             throw ValidationException::withMessages(['availability' => 'Selecciona al menos un uso: Recepción, productos para fórmulas o insumos de Color Bar.']);
         }
 
         $category = ProductCategory::query()->findOrFail($data['product_category_id']);
-        if ($data['is_color_bar_usable'] && $data['color_bar_pricing_type'] === 'multiplier' && $category->color_bar_multiplier === null) {
-            throw ValidationException::withMessages(['product_category_id' => 'Para Color Bar selecciona una categoría con multiplicador de aplicación.']);
+        if ($data['is_color_bar_usable'] && in_array($data['color_bar_pricing_type'], ['multiplier', 'both'], true) && $category->color_bar_multiplier === null) {
+            throw ValidationException::withMessages(['product_category_id' => 'Para usar medida (gr), selecciona una categoría con tarifa por gramo.']);
         }
-        if ($data['is_color_bar_usable'] && ! $data['is_color_bar_supply'] && $data['color_bar_pricing_type'] === 'multiplier') {
-            $data['base_unit'] = 'g';
-        }
-        if ($data['is_color_bar_usable'] && ! $data['is_color_bar_supply'] && $data['color_bar_pricing_type'] === 'fixed') {
-            $data['base_unit'] = 'unidad';
-        }
-        if (! $data['is_color_bar_usable']) {
-            $data['color_bar_pricing_type'] = 'fixed';
-            $data['color_bar_sale_price'] = 0;
+        if ($variant !== null && (float) $data['cost'] === (float) number_format((float) $variant->cost, 2, '.', '')) {
+            $data['cost'] = $variant->cost;
         }
         $data['product_brand_id'] = $data['product_brand_id'] ?? null;
         $data['brand'] = $data['product_brand_id'] ? ProductBrand::query()->findOrFail($data['product_brand_id'])->name : null;
-        $data['maximum_stock'] = $data['maximum_stock'] ?? max((float) $data['minimum_stock'], (float) $data['minimum_stock'] * 3);
+        $data['maximum_stock'] = $data['maximum_stock'] ?? ($product !== null ? $variant?->maximum_stock : max((float) $data['minimum_stock'], (float) $data['minimum_stock'] * 3));
 
         return $data;
     }

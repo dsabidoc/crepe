@@ -28,7 +28,7 @@
                 <strong data-label="Venta">
                     @if($product->is_reception_usable)Recepción ${{ number_format((float) ($variant?->sale_price ?? 0), 2) }}@endif
                     @if($product->is_color_bar_usable)
-                        <small>{{ $variant?->color_bar_pricing_type === 'multiplier' ? 'Color Bar × $'.number_format((float) ($product->category?->color_bar_multiplier ?? 0), 2).' por gr' : 'Color Bar $'.number_format((float) ($variant?->color_bar_sale_price ?? 0), 2).' por aplicación' }}</small>
+                        <small>@if($variant?->color_bar_pricing_type === 'both')Color Bar · Ambos · ${{ number_format((float) ($variant?->color_bar_sale_price ?? 0), 2) }} por aplicación · ${{ number_format((float) ($product->category?->color_bar_multiplier ?? 0), 2) }} por gr@else{{ $variant?->color_bar_pricing_type === 'multiplier' ? 'Color Bar × $'.number_format((float) ($product->category?->color_bar_multiplier ?? 0), 2).' por gr' : 'Color Bar $'.number_format((float) ($variant?->color_bar_sale_price ?? 0), 2).' por aplicación' }}@endif</small>
                     @endif
                 </strong>
                 <b>→</b>
