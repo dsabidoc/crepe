@@ -10,8 +10,8 @@
             @foreach($purchaseOrder->items as $item)
                 <div class="table-row inventory-row">
                     <strong>{{ $item->variant->product->name }} · {{ $item->variant->name }}</strong>
-                    <span>@if($purchaseOrder->status === 'draft')<form method="POST" action="{{ route('purchase-orders.items.update', [$purchaseOrder, $item]) }}" class="purchase-order-quantity-form">@csrf @method('PUT')<input name="ordered_quantity" type="number" step=".001" min=".001" value="{{ $item->ordered_quantity }}"><button type="submit">Guardar</button></form>@else{{ $item->ordered_quantity }}@endif</span>
-                    <span>{{ $item->received_quantity }}</span>
+                    <span>@if($purchaseOrder->status === 'draft')<form method="POST" action="{{ route('purchase-orders.items.update', [$purchaseOrder, $item]) }}" class="purchase-order-quantity-form">@csrf @method('PUT')<input name="ordered_quantity" type="number" step=".001" min=".001" value="{{ rtrim(rtrim(number_format((float) $item->ordered_quantity, 3, '.', ''), '0'), '.') }}"><button type="submit">Guardar</button></form>@else{{ rtrim(rtrim(number_format((float) $item->ordered_quantity, 3), '0'), '.') }}@endif</span>
+                    <span>{{ rtrim(rtrim(number_format((float) $item->received_quantity, 3), '0'), '.') }}</span>
                     <span>${{ number_format((float) $item->cost_snapshot, 2) }}</span>
                     @if($purchaseOrder->status === 'draft')<form method="POST" action="{{ route('purchase-orders.items.destroy', [$purchaseOrder, $item]) }}" onsubmit="return confirm('¿Quitar este producto de la orden?')">@csrf @method('DELETE')<button class="link-danger" type="submit">Quitar</button></form>@endif
                 </div>
@@ -26,7 +26,7 @@
             </form>
             <form method="POST" action="{{ route('purchase-orders.receive', $purchaseOrder) }}" enctype="multipart/form-data" class="form-section">@csrf
                 <h2>Recibir pedido</h2><p>Captura la cantidad recibida; aunque sea menor, esta orden se cierra sin pendientes y se crea la cuenta por pagar.</p>
-                <div class="field-grid"><label><span>Factura</span><input type="file" name="invoice" accept="image/jpeg,image/png,application/pdf"></label><label><span>Folio factura</span><input name="invoice_reference"></label><label><span>Monto total factura</span><input type="number" name="amount" min=".01" step=".01" required></label>@foreach($purchaseOrder->items as $item)<label><span>{{ $item->variant->product->name }} · recibido</span><input type="number" name="items[{{ $item->id }}]" min="0" max="{{ $item->ordered_quantity }}" step=".001" value="{{ $item->ordered_quantity }}"></label>@endforeach</div>
+                <div class="field-grid"><label><span>Factura</span><input type="file" name="invoice" accept="image/jpeg,image/png,application/pdf"></label><label><span>Folio factura</span><input name="invoice_reference"></label><label><span>Monto total factura</span><input type="number" name="amount" min=".01" step=".01" required></label>@foreach($purchaseOrder->items as $item)<label><span>{{ $item->variant->product->name }} · recibido</span><input type="number" name="items[{{ $item->id }}]" min="0" max="{{ rtrim(rtrim(number_format((float) $item->ordered_quantity, 3, '.', ''), '0'), '.') }}" step=".001" value="{{ rtrim(rtrim(number_format((float) $item->ordered_quantity, 3, '.', ''), '0'), '.') }}"></label>@endforeach</div>
                 <button class="button button-primary" type="submit">Registrar recepción y CxP</button>
             </form>
         @elseif($purchaseOrder->payableInvoice)

@@ -51,7 +51,7 @@
                     <time>{{ $movement->created_at->format('d/m/Y H:i') }}</time>
                     <div><strong>{{ $movement->variant?->product?->name ?: 'Producto eliminado' }}</strong><small>{{ $movement->variant?->name ?: '—' }}{{ $movement->variant?->sku ? ' · '.$movement->variant->sku : '' }}</small></div>
                     <span>{{ $movement->location?->name ?: '—' }}</span>
-                    <strong class="{{ (float) $movement->quantity < 0 ? 'activity-out' : 'activity-in' }}">{{ (float) $movement->quantity > 0 ? '+' : '' }}{{ number_format((float) $movement->quantity, 3) }} {{ $movement->variant?->base_unit }}</strong>
+                    <strong class="{{ (float) $movement->quantity < 0 ? 'activity-out' : 'activity-in' }}">{{ (float) $movement->quantity > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format((float) $movement->quantity, 3), '0'), '.') }} {{ $movement->variant?->base_unit }}</strong>
                     <div><span>{{ $movementLabels[$movement->type] ?? str($movement->type)->replace('_', ' ')->headline() }}</span><small>{{ $movement->reason ?: 'Sin motivo capturado' }}{{ $movement->creator ? ' · '.$movement->creator->name : '' }}</small></div>
                 </div>
             @empty
