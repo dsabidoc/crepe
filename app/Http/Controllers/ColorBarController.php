@@ -17,6 +17,8 @@ class ColorBarController extends Controller
 {
     public function index(Request $request): View
     {
+        $request->session()->put('crepe.mode', 'color-bar');
+
         $location = InventoryLocation::query()->where('code', 'CB')->firstOrFail();
         $ticketSearch = trim((string) $request->string('ticket_search'));
         $tickets = Ticket::query()
