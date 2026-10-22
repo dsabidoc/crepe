@@ -62,6 +62,7 @@ Route::middleware(['auth', EnsureConfiguredModuleAccess::class])->group(function
     Route::post('/tickets/{ticket}/reabrir', [TicketController::class, 'reopen'])->middleware('can:cash.authorize')->name('tickets.reopen');
     Route::post('/tickets/{ticket}/cancelar', [TicketController::class, 'cancel'])->middleware('can:cash.authorize')->name('tickets.cancel');
     Route::get('/color-bar', [ColorBarController::class, 'index'])->middleware('can:mode.color-bar.access')->name('color-bar.index');
+    Route::get('/color-bar/tickets/{ticket}/historial', [ColorBarController::class, 'history'])->middleware('can:mode.color-bar.access')->name('color-bar.history');
     Route::post('/color-bar/formulas', [ColorBarController::class, 'store'])->middleware('can:mode.color-bar.access')->name('color-bar.store');
     Route::post('/color-bar/formulas/{formula}/corregir', [ColorBarController::class, 'update'])->middleware('can:mode.color-bar.access')->name('color-bar.update');
     Route::get('/inventario', [InventoryController::class, 'index'])->middleware('can:inventory.view')->name('inventory.index');

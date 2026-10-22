@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Ticket extends Model
 {
@@ -43,6 +44,11 @@ class Ticket extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function colorFormulas(): HasMany
+    {
+        return $this->hasMany(ColorFormula::class);
     }
 
     public function getSubtotalAttribute(): float
