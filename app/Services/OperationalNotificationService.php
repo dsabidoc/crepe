@@ -12,7 +12,6 @@ use App\Models\PayableInvoice;
 use App\Models\SalonService;
 use App\Models\Ticket;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -38,7 +37,7 @@ class OperationalNotificationService
             self::StockLow => ['inventory.view', 'inventory.requests.manage'],
             self::PayablePending => ['finance.view', 'finance.manage'],
             self::AppointmentPending => ['appointments.view', 'appointments.create', 'tickets.charge', 'mode.reception.access'],
-            self::AttendancePending => ['mode.reception.access'],
+            self::AttendancePending => ['attendance.manage'],
             self::ColorBarPending => ['mode.color-bar.access'],
             self::FormulaUpdated => ['mode.reception.access', 'tickets.view'],
         ];
@@ -210,10 +209,7 @@ class OperationalNotificationService
             return;
         }
         $required = self::permissions()[$type];
-        $recipients = User::query()->where('is_active', true)
-            ->where(fn (Builder $users) => $users->permission($required[0])
-                ->orWhereHas('roles', fn (Builder $roles) => $roles->where('name', 'Recepción')->where('guard_name', 'web')))
-            ->with(['roles.permissions', 'permissions'])->orderBy('id')->get();
+        $recipients = User::query()->where('is_active', true)->with(['roles.permissions', 'permissions'])->orderBy('id')->get();
         foreach ($recipients as $recipient) {
             if (! $recipient->can($required)) {
                 continue;

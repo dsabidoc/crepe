@@ -63,13 +63,10 @@ class WorkflowNotificationService
     {
         $inventoryRequest->loadMissing('sourceLocation');
         $itemCount = $inventoryRequest->items()->count();
-        $recipients = User::query()->where('is_active', true)
-            ->where(fn (Builder $users) => $users->permission('inventory.requests.manage')
-                ->orWhereHas('roles', fn (Builder $roles) => $roles->where('name', 'Recepción')->where('guard_name', 'web')))
-            ->get();
+        $recipients = User::query()->where('is_active', true)->with(['roles.permissions', 'permissions'])->get();
 
         foreach ($recipients as $recipient) {
-            if ($recipient->can('inventory.view')) {
+            if ($recipient->can(['inventory.view', 'inventory.requests.manage'])) {
                 $this->store($recipient, self::RequestPending, $inventoryRequest->id, [
                     'module' => 'inventario',
                     'module_name' => 'Almacén',

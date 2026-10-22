@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Services\RoleModuleAccessService;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -17,7 +18,23 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasRoles, Notifiable;
+    use HasFactory, Notifiable;
+
+    use HasRoles {
+        checkPermissionTo as private checkStoredPermissionTo;
+    }
+
+    public function checkPermissionTo(mixed $permission, ?string $guardName = null): bool
+    {
+        if (is_string($permission) && ($guardName === null || $guardName === 'web')) {
+            $decision = app(RoleModuleAccessService::class)->decision($this, $permission);
+            if ($decision !== null) {
+                return $decision;
+            }
+        }
+
+        return $this->checkStoredPermissionTo($permission, $guardName);
+    }
 
     public function employee(): HasOne
     {

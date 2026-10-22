@@ -2,8 +2,7 @@
 
 namespace App\Providers;
 
-use App\Models\User;
-use Illuminate\Support\Facades\Gate;
+use App\Services\RoleModuleAccessService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -13,7 +12,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->scoped(RoleModuleAccessService::class);
     }
 
     /**
@@ -21,16 +20,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Gate::before(function (User $user, string $ability): ?bool {
-            if (in_array($ability, [
-                'mode.color-bar.access', 'mode.almacen.access', 'products.manage',
-                'inventory.view', 'inventory.move', 'inventory.requests.manage',
-                'tickets.view', 'tickets.update',
-            ], true) && $user->hasRole('Recepción')) {
-                return true;
-            }
-
-            return null;
-        });
+        //
     }
 }

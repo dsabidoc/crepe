@@ -1,5 +1,8 @@
 <x-layouts.app title="Configuración">
     <section class="page-title"><div><p class="eyebrow">ADMINISTRACIÓN</p><h1>Configuración</h1><p>Define los valores generales que aplican a todas las cajas.</p></div></section>
+    @can('roles.manage')
+        <nav aria-label="Secciones de configuración" style="display:flex;gap:22px;margin-bottom:24px;border-bottom:1px solid #e4e8ef;padding-bottom:13px;font-size:13px"><a href="{{ route('settings.edit') }}" aria-current="page" style="color:#9e3e5c;font-weight:750">Configuración general</a><a href="{{ route('settings.role-modules.index') }}" style="color:#738096">Accesos por rol</a></nav>
+    @endcan
     <section class="surface settings-card">
         <header><div><p class="eyebrow">CAJAS</p><h2>Monto de inicio de cajas</h2><p>Este fondo se sugiere al abrir una caja nueva cada día. La recepción puede ajustarlo si el efectivo real es distinto.</p></div></header>
         <form method="POST" action="{{ route('settings.update') }}" class="settings-form">

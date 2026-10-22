@@ -21,9 +21,11 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\ReceptionCashMovementController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\RoleModuleAccessController;
 use App\Http\Controllers\SalonServiceController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\TicketController;
+use App\Http\Middleware\EnsureConfiguredModuleAccess;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => auth()->check()
@@ -35,7 +37,7 @@ Route::middleware('guest')->group(function (): void {
     Route::post('/ingresar', [AuthController::class, 'store'])->name('login.store');
 });
 
-Route::middleware('auth')->group(function (): void {
+Route::middleware(['auth', EnsureConfiguredModuleAccess::class])->group(function (): void {
     Route::post('/salir', [AuthController::class, 'destroy'])->name('logout');
     Route::get('/modos', [ModeController::class, 'index'])->name('modes.select');
     Route::post('/modos', [ModeController::class, 'store'])->name('modes.store');
@@ -103,9 +105,9 @@ Route::middleware('auth')->group(function (): void {
     Route::put('/nomina/{payrollRun}/descuentos', [PayrollController::class, 'updateDiscount'])->middleware('can:finance.manage')->name('payroll.discounts.update');
     Route::put('/nomina/{payrollRun}/personas/{payrollItem}', [PayrollController::class, 'updateItem'])->middleware('can:finance.manage')->name('payroll.items.update');
     Route::get('/nomina/{payrollRun}/personas/{payrollItem}/recibo', [PayrollController::class, 'downloadReceipt'])->middleware('can:finance.view')->name('payroll.items.receipt');
-    Route::get('/checks', [AttendanceController::class, 'index'])->name('attendance.index');
-    Route::post('/checks/registrar', [AttendanceController::class, 'register'])->name('attendance.register');
-    Route::put('/checks/incidencias/{attendanceIncident}', [AttendanceController::class, 'resolve'])->middleware('can:settings.manage')->name('attendance.incidents.resolve');
+    Route::get('/checks', [AttendanceController::class, 'index'])->middleware('can:attendance.register')->name('attendance.index');
+    Route::post('/checks/registrar', [AttendanceController::class, 'register'])->middleware('can:attendance.register')->name('attendance.register');
+    Route::put('/checks/incidencias/{attendanceIncident}', [AttendanceController::class, 'resolve'])->middleware('can:attendance.manage')->name('attendance.incidents.resolve');
     Route::resource('clientas', CustomerController::class)->middleware('can:customers.view')->parameters(['clientas' => 'customer'])->names('customers');
     Route::resource('equipo', EmployeeController::class)->middleware('can:settings.manage')->parameters(['equipo' => 'employee'])->names('employees');
     Route::resource('servicios', SalonServiceController::class)->middleware('can:settings.manage')->parameters(['servicios' => 'service'])->names('services');
@@ -113,8 +115,10 @@ Route::middleware('auth')->group(function (): void {
     Route::post('/productos/catalogos/marcas', [ProductController::class, 'storeBrand'])->middleware('can:products.manage')->name('products.brands.store');
     Route::post('/productos/catalogos/categorias', [ProductController::class, 'storeCategory'])->middleware('can:products.manage')->name('products.categories.store');
     Route::resource('productos', ProductController::class)->middleware('can:products.manage')->parameters(['productos' => 'product'])->names('products');
-    Route::resource('promos', PromotionController::class)->middleware('can:settings.manage')->parameters(['promos' => 'promotion'])->names('promotions');
-    Route::post('/promos/{promotion}/aplicar/tickets/{ticket}', [PromotionController::class, 'apply'])->middleware('can:tickets.update')->name('promotions.apply');
+    Route::resource('promos', PromotionController::class)->middleware('can:promotions.manage')->parameters(['promos' => 'promotion'])->names('promotions');
+    Route::post('/promos/{promotion}/aplicar/tickets/{ticket}', [PromotionController::class, 'apply'])->middleware('can:promotions.apply')->name('promotions.apply');
+    Route::get('/configuracion/accesos', [RoleModuleAccessController::class, 'index'])->middleware('can:roles.manage')->name('settings.role-modules.index');
+    Route::put('/configuracion/accesos/{role}', [RoleModuleAccessController::class, 'update'])->middleware('can:roles.manage')->name('settings.role-modules.update');
     Route::get('/configuracion', [SettingsController::class, 'edit'])->middleware('can:settings.manage')->name('settings.edit');
     Route::put('/configuracion', [SettingsController::class, 'update'])->middleware('can:settings.manage')->name('settings.update');
     Route::put('/configuracion/checks', [SettingsController::class, 'updateAttendance'])->middleware('can:settings.manage')->name('settings.attendance.update');

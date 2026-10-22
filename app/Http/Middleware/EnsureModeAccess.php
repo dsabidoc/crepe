@@ -22,7 +22,7 @@ class EnsureModeAccess
             'color-bar' => 'mode.color-bar.access',
             'almacen' => 'mode.almacen.access',
             'finanzas' => 'finance.view',
-            'promos' => 'settings.manage',
+            'promos' => 'promotions.manage',
             'configuracion' => 'settings.manage',
         ];
 

@@ -14,9 +14,9 @@ class ModeController extends Controller
         'color-bar' => ['permission' => 'mode.color-bar.access', 'route' => 'color-bar.index', 'title' => 'Color Bar'],
         'finanzas' => ['permission' => 'finance.view', 'route' => 'finance.index', 'title' => 'Finanzas'],
         'almacen' => ['permission' => 'mode.almacen.access', 'route' => 'workspace', 'title' => 'Almacén'],
-        'promos' => ['permission' => 'settings.manage', 'route' => 'promotions.index', 'title' => 'Promos'],
+        'promos' => ['permission' => 'promotions.manage', 'route' => 'promotions.index', 'title' => 'Promos'],
         'configuracion' => ['permission' => 'settings.manage', 'route' => 'settings.edit', 'title' => 'Configuración'],
-        'checks' => ['permission' => 'mode.reception.access', 'route' => 'attendance.index', 'title' => 'Checks'],
+        'checks' => ['permission' => 'mode.checks.access', 'route' => 'attendance.index', 'title' => 'Checks'],
     ];
 
     public function index(Request $request): View
