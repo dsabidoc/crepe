@@ -44,6 +44,7 @@ class CrepeSeeder extends Seeder
         AppSetting::put('cash.opening_float', AppSetting::value('cash.opening_float', 1250));
         $this->call(JobPositionSeeder::class);
         $permissions = [
+            'products.export', 'products.import', 'products.costs.view', 'products.prices.manage', 'inventory.export', 'inventory.import', 'imports.view',
             'mode.administration.access', 'mode.reception.access', 'mode.color-bar.access',
             'mode.almacen.access', 'products.manage', 'inventory.requests.manage',
             'appointments.view', 'appointments.create', 'customers.view', 'customers.create',
@@ -69,6 +70,7 @@ class CrepeSeeder extends Seeder
             'mode.color-bar.access', 'tickets.view', 'tickets.update', 'inventory.view',
         ]));
         Role::findOrCreate('Almacén', 'web')->syncPermissions($permissionModels->whereIn('name', [
+            'products.export', 'products.import', 'products.costs.view', 'products.prices.manage', 'inventory.export', 'inventory.import', 'imports.view',
             'mode.almacen.access', 'products.manage', 'inventory.view', 'inventory.move', 'inventory.requests.manage',
         ]));
 

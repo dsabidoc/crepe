@@ -1,7 +1,12 @@
 <x-layouts.app title="Productos">
-<section class="page-title">
+<section class="page-title flex-wrap">
     <div><p class="eyebrow">CATÁLOGO · PRODUCTOS</p><h1>Productos</h1><p>Presentaciones, precios y unidades para venta y Color Bar.</p></div>
-    <div class="title-actions"><a class="button button-secondary" href="{{ route('products.catalogs') }}">Catálogos</a><a class="button button-primary" href="{{ route('products.create') }}">+ Nuevo producto</a></div>
+    <div class="title-actions min-w-0 flex-wrap">
+        @can('products.export')<a class="button button-secondary" href="{{ route('products.export') }}">Descargar Excel</a><a class="button button-secondary" href="{{ route('products.export', ['format' => 'csv']) }}">Descargar CSV</a>@endcan
+        @can('products.import')<a class="button button-secondary" href="{{ route('products.import.create') }}">Importar Excel / CSV</a>@endcan
+        @can('imports.view')<a class="button button-secondary" href="{{ route('imports.index') }}">Historial de importaciones</a>@endcan
+        <a class="button button-secondary" href="{{ route('products.catalogs') }}">Catálogos</a><a class="button button-primary" href="{{ route('products.create') }}">+ Nuevo producto</a>
+    </div>
 </section>
 <section class="surface list-surface">
     <header class="list-controls">

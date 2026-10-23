@@ -8,7 +8,9 @@ use App\Models\InventoryLocation;
 use App\Models\InventoryRequest;
 use App\Models\ProductVariant;
 use App\Services\InventoryRequestPdfService;
+use App\Services\InventoryRequestService;
 use App\Services\InventoryService;
+use App\Services\WorkflowNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -48,15 +50,16 @@ class InventoryRequestController extends Controller
     public function create(Request $request): View
     {
         $source = $this->sourceLocation($request);
-        $colorBar = $source->code === 'CB';
-        $variants = ProductVariant::query()->with(['product', 'balances' => fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', 'ALM'))])
-            ->whereHas('product', fn ($products) => $products->where('status', 'active')->where('is_color_bar_usable', $colorBar))
+        $variants = ProductVariant::query()->with(['product.preferredSupplier', 'balances' => fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', 'ALM'))])
+            ->whereHas('product', fn ($products) => $products
+                ->where('status', 'active')
+                ->when($source->code === 'CB', fn ($products) => $products->colorBarSupplies(), fn ($products) => $products->where('is_reception_usable', true)))
             ->orderBy('product_id')->orderBy('name')->get();
 
         return view('inventory.requests.create', compact('source', 'variants'));
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request, InventoryRequestService $requests): RedirectResponse
     {
         $source = $this->sourceLocation($request);
         $data = $request->validate([
@@ -83,42 +86,15 @@ class InventoryRequestController extends Controller
 
         foreach ($variantIds as $variantId) {
             $variant = $variants->get($variantId);
-            if ($variant === null || $variant->product->is_color_bar_usable !== ($source->code === 'CB')) {
+            $isAvailableAtSource = $variant !== null && ($source->code === 'CB'
+                ? $variant->product->isColorBarSupply()
+                : $variant->product->is_reception_usable);
+            if (! $isAvailableAtSource) {
                 throw ValidationException::withMessages(['items' => 'Selecciona productos de la ubicación solicitante.']);
             }
         }
 
-        $inventoryRequest = DB::transaction(function () use ($data, $request, $source, $variants): InventoryRequest {
-            $inventoryRequest = InventoryRequest::create([
-                'code' => 'TEMP-'.str()->uuid(),
-                'source_location_id' => $source->id,
-                'status' => 'pending',
-                'requested_by' => $request->user()->id,
-                'notes' => $data['notes'] ?? null,
-            ]);
-            $inventoryRequest->update(['code' => 'SOL-'.str_pad((string) $inventoryRequest->id, 6, '0', STR_PAD_LEFT)]);
-
-            foreach ($data['items'] as $item) {
-                $variant = $variants[(int) $item['product_variant_id']];
-                $inventoryRequest->items()->create([
-                    'product_variant_id' => $variant->id,
-                    'requested_quantity' => $item['requested_units'] !== null ? $item['requested_units'] * (float) $variant->content_quantity : $item['requested_quantity'],
-                    'requested_units' => $item['requested_units'],
-                    'unit' => $variant->base_unit,
-                ]);
-            }
-
-            AuditLog::create([
-                'user_id' => $request->user()->id,
-                'action' => 'inventory.request.created',
-                'subject_type' => InventoryRequest::class,
-                'subject_id' => $inventoryRequest->id,
-                'after' => ['code' => $inventoryRequest->code, 'source' => $source->code, 'status' => 'pending'],
-                'reason' => 'Solicitud de inventario',
-            ]);
-
-            return $inventoryRequest;
-        });
+        $inventoryRequest = $requests->create($source, $request->user(), $variants, $data['items'], $data['notes'] ?? null);
 
         return redirect()->route('inventory.requests.index', ['location' => $source->code])->with('success', "Solicitud {$inventoryRequest->code} enviada a Almacén.");
     }
@@ -141,14 +117,26 @@ class InventoryRequestController extends Controller
         ]);
     }
 
-    public function close(Request $request, InventoryRequest $inventoryRequest, InventoryService $inventory): RedirectResponse
+    public function show(Request $request, InventoryRequest $inventoryRequest, WorkflowNotificationService $notifications): View
+    {
+        $inventoryRequest->load(['sourceLocation', 'requester', 'processor', 'items.variant.product']);
+        abort_unless($request->user()->can('inventory.requests.manage') || (
+            $inventoryRequest->requested_by === $request->user()->id
+            && $notifications->canViewLocation($request->user(), $inventoryRequest->sourceLocation->code)
+        ), 403);
+
+        return view('inventory.requests.show', compact('inventoryRequest'));
+    }
+
+    public function close(Request $request, InventoryRequest $inventoryRequest, InventoryService $inventory, WorkflowNotificationService $notifications): RedirectResponse
     {
         abort_unless($inventoryRequest->status === 'pending', 422, 'Esta solicitud ya fue cerrada.');
         $data = $request->validate(['items' => ['required', 'array'], 'items.*' => ['required', 'numeric', 'min:0'], 'closure_notes' => ['nullable', 'string', 'max:600']]);
         $before = $inventoryRequest->load('items')->toArray();
 
-        DB::transaction(function () use ($data, $request, $inventoryRequest, $inventory): void {
+        DB::transaction(function () use ($data, $request, $inventoryRequest, $inventory, $notifications): void {
             $lockedRequest = InventoryRequest::query()->with('items.variant')->lockForUpdate()->findOrFail($inventoryRequest->id);
+            abort_unless($lockedRequest->status === 'pending', 422, 'Esta solicitud ya fue cerrada.');
             $warehouse = InventoryLocation::query()->where('code', 'ALM')->firstOrFail();
             foreach ($lockedRequest->items as $item) {
                 $requested = (float) $item->requested_quantity;
@@ -170,6 +158,7 @@ class InventoryRequestController extends Controller
                 $item->update(['delivered_quantity' => $delivered, 'delivered_units' => $requestedUnits === null ? null : (int) round($delivered / $contentQuantity)]);
             }
             $lockedRequest->update(['status' => 'closed', 'processed_by' => $request->user()->id, 'processed_at' => now(), 'closure_notes' => $data['closure_notes'] ?? null]);
+            $notifications->inventoryRequestClosed($lockedRequest);
             AuditLog::create(['user_id' => $request->user()->id, 'action' => 'inventory.request.closed', 'subject_type' => InventoryRequest::class, 'subject_id' => $lockedRequest->id, 'before' => ['status' => 'pending'], 'after' => ['status' => 'closed', 'items' => $lockedRequest->items->map(fn ($item): array => ['item_id' => $item->id, 'requested' => (float) $item->requested_quantity, 'requested_units' => $item->requested_units, 'delivered' => (float) $item->delivered_quantity, 'delivered_units' => $item->delivered_units])->all()], 'reason' => $data['closure_notes'] ?? 'Solicitud cerrada por Almacén']);
         });
 

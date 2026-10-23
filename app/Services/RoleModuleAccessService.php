@@ -8,6 +8,16 @@ use Spatie\Permission\Models\Role;
 
 class RoleModuleAccessService
 {
+    public const SpreadsheetPermissions = [
+        'products.export' => 'Descargar catálogo de productos',
+        'products.import' => 'Importar altas y actualizaciones de productos',
+        'products.costs.view' => 'Ver y cargar costos en archivos y revisiones',
+        'products.prices.manage' => 'Cargar cambios de precios',
+        'inventory.export' => 'Descargar inventario por ubicación',
+        'inventory.import' => 'Subir conteos de inventario',
+        'imports.view' => 'Consultar el historial compartido y descargar resultados',
+    ];
+
     private const SETTING_PREFIX = 'access.role.';
 
     private const RECEPTION_ACCESS = [
@@ -33,7 +43,7 @@ class RoleModuleAccessService
             ],
             'almacen' => [
                 'title' => 'Almacén', 'description' => 'Productos, existencias, solicitudes y órdenes de compra.', 'icon' => '▦', 'permission' => 'mode.almacen.access',
-                'permissions' => ['mode.almacen.access', 'products.manage', 'inventory.view', 'inventory.move', 'inventory.requests.manage'],
+                'permissions' => ['mode.almacen.access', 'products.manage', 'products.export', 'products.import', 'products.costs.view', 'products.prices.manage', 'inventory.export', 'inventory.import', 'imports.view', 'inventory.view', 'inventory.move', 'inventory.requests.manage'],
             ],
             'finanzas' => [
                 'title' => 'Finanzas', 'description' => 'Ingresos, gastos, cuentas, pagos a proveedores y nómina.', 'icon' => '$', 'permission' => 'finance.view',
@@ -105,7 +115,8 @@ class RoleModuleAccessService
             }
             $hasConfiguredRole = true;
             foreach ($configured as $module) {
-                $allowed = $allowed || in_array($permission, $this->modules()[$module]['permissions'], true);
+                $allowed = $allowed || (in_array($permission, $this->modules()[$module]['permissions'], true)
+                    && (! isset(self::SpreadsheetPermissions[$permission]) || $role->permissions->contains('name', $permission)));
             }
         }
         if ($hasConfiguredRole) {

@@ -8,6 +8,7 @@
         'transfer_in' => 'Entrada por traspaso',
         'transfer_out' => 'Salida por traspaso',
         'color_consumption' => 'Consumo Color Bar',
+        'color_bar_depletion' => 'Envases agotados · Color Bar',
         'adjustment' => 'Ajuste',
     ];
 @endphp
@@ -44,15 +45,17 @@
 <section class="activity-layout">
     <article class="surface activity-list">
         <header><div><p class="eyebrow">{{ $locationLabel }}</p><h2>Movimientos de inventario</h2><p>Entradas, salidas, ventas, consumos y traspasos registrados.</p></div><strong class="activity-count">{{ $movements->total() }} registros</strong></header>
-        <div class="activity-table activity-movement-table">
-            <div class="activity-table-head"><span>FECHA</span><span>PRODUCTO</span><span>UBICACIÓN</span><span>MOVIMIENTO</span><span>DETALLE</span></div>
+        <div class="activity-table activity-movement-table product-movement-table">
+            <div class="activity-table-head"><span>FECHA</span><span>PRODUCTO</span><span>MARCA</span><span>PROVEEDOR</span><span>UBICACIÓN</span><span>MOVIMIENTO</span><span>DETALLE</span></div>
             @forelse($movements as $movement)
                 <div class="activity-table-row">
-                    <time>{{ $movement->created_at->format('d/m/Y H:i') }}</time>
-                    <div><strong>{{ $movement->variant?->product?->name ?: 'Producto eliminado' }}</strong><small>{{ $movement->variant?->name ?: '—' }}{{ $movement->variant?->sku ? ' · '.$movement->variant->sku : '' }}</small></div>
-                    <span>{{ $movement->location?->name ?: '—' }}</span>
-                    <strong class="{{ (float) $movement->quantity < 0 ? 'activity-out' : 'activity-in' }}">{{ (float) $movement->quantity > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format((float) $movement->quantity, 3), '0'), '.') }} {{ $movement->variant?->base_unit }}</strong>
-                    <div><span>{{ $movementLabels[$movement->type] ?? str($movement->type)->replace('_', ' ')->headline() }}</span><small>{{ $movement->reason ?: 'Sin motivo capturado' }}{{ $movement->creator ? ' · '.$movement->creator->name : '' }}</small></div>
+                    <time data-label="Fecha">{{ $movement->created_at->format('d/m/Y H:i') }}</time>
+                    <div class="product-name-cell"><strong>{{ $movement->variant?->product?->name ?: 'Producto eliminado' }}</strong><small>{{ $movement->variant?->name ?: '—' }}{{ $movement->variant?->sku ? ' · '.$movement->variant->sku : '' }}</small></div>
+                    <x-product-reference :product="$movement->variant?->product" field="brand" />
+                    <x-product-reference :product="$movement->variant?->product" field="supplier" />
+                    <span data-label="Ubicación">{{ $movement->location?->name ?: '—' }}</span>
+                    <strong data-label="Movimiento" class="{{ (float) $movement->quantity < 0 ? 'activity-out' : 'activity-in' }}">{{ (float) $movement->quantity > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format((float) $movement->quantity, 3), '0'), '.') }} {{ $movement->variant?->base_unit }}</strong>
+                    <div data-label="Detalle"><span>{{ $movementLabels[$movement->type] ?? str($movement->type)->replace('_', ' ')->headline() }}</span><small>{{ $movement->reason ?: 'Sin motivo capturado' }}{{ $movement->creator ? ' · '.$movement->creator->name : '' }}</small></div>
                 </div>
             @empty
                 <p class="empty-state">No hay movimientos que coincidan con los filtros.</p>

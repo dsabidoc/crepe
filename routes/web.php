@@ -11,6 +11,11 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\FinanceController;
+use App\Http\Controllers\ColorBarDepletionController;
+use App\Http\Controllers\InventorySpreadsheetController;
+use App\Http\Controllers\ProductSpreadsheetController;
+use App\Http\Controllers\SpreadsheetImportController;
+use App\Http\Controllers\SpreadsheetPermissionController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryRequestController;
 use App\Http\Controllers\ModeController;
@@ -66,9 +71,26 @@ Route::middleware(['auth', EnsureConfiguredModuleAccess::class])->group(function
     Route::post('/color-bar/formulas', [ColorBarController::class, 'store'])->middleware('can:mode.color-bar.access')->name('color-bar.store');
     Route::post('/color-bar/formulas/{formula}/corregir', [ColorBarController::class, 'update'])->middleware('can:mode.color-bar.access')->name('color-bar.update');
     Route::get('/inventario', [InventoryController::class, 'index'])->middleware('can:inventory.view')->name('inventory.index');
+    Route::get('/inventario/color-bar/bajas', [ColorBarDepletionController::class, 'create'])->middleware(['can:inventory.view', 'can:mode.color-bar.access'])->name('inventory.color-bar.depletions.create');
+    Route::post('/inventario/color-bar/bajas', [ColorBarDepletionController::class, 'store'])->middleware(['can:inventory.view', 'can:mode.color-bar.access'])->name('inventory.color-bar.depletions.store');
+    Route::post('/inventario/color-bar/{balance}/baja', [InventoryController::class, 'depleteColorBar'])->middleware(['can:inventory.view', 'can:mode.color-bar.access'])->name('inventory.color-bar.deplete');
+    Route::middleware(['can:inventory.view'])->group(function (): void {
+        Route::get('/inventario/excel', [InventorySpreadsheetController::class, 'download'])->middleware('can:inventory.export')->name('inventory.export');
+        Route::get('/inventario/importar', [InventorySpreadsheetController::class, 'create'])->middleware('can:inventory.import')->name('inventory.import.create');
+        Route::post('/inventario/importar/revisar', [InventorySpreadsheetController::class, 'preview'])->middleware('can:inventory.import')->name('inventory.import.preview');
+        Route::post('/inventario/importar', [InventorySpreadsheetController::class, 'store'])->middleware(['can:inventory.import', 'can:inventory.move'])->name('inventory.import.store');
+    });
+    Route::get('/importaciones/permisos', [SpreadsheetPermissionController::class, 'index'])->middleware('can:roles.manage')->name('imports.permissions.index');
+    Route::put('/importaciones/permisos/{role}', [SpreadsheetPermissionController::class, 'update'])->middleware('can:roles.manage')->name('imports.permissions.update');
+    Route::middleware('can:imports.view')->group(function (): void {
+        Route::get('/importaciones', [SpreadsheetImportController::class, 'index'])->name('imports.index');
+        Route::get('/importaciones/{spreadsheetImport}', [SpreadsheetImportController::class, 'show'])->name('imports.show');
+        Route::get('/importaciones/{spreadsheetImport}/resultado', [SpreadsheetImportController::class, 'result'])->name('imports.result');
+    });
     Route::get('/bitacoras', [ActivityLogController::class, 'index'])->middleware('can:inventory.view')->name('activity.index');
     Route::get('/inventario/solicitudes', [InventoryRequestController::class, 'index'])->middleware('can:inventory.view')->name('inventory.requests.index');
     Route::get('/inventario/solicitudes/nueva', [InventoryRequestController::class, 'create'])->middleware('can:inventory.view')->name('inventory.requests.create');
+    Route::get('/inventario/solicitudes/{inventoryRequest}', [InventoryRequestController::class, 'show'])->middleware('can:inventory.view')->name('inventory.requests.show');
     Route::post('/inventario/solicitudes', [InventoryRequestController::class, 'store'])->middleware('can:inventory.view')->name('inventory.requests.store');
     Route::get('/inventario/solicitudes/{inventoryRequest}/procesar', [InventoryRequestController::class, 'edit'])->middleware('can:inventory.requests.manage')->name('inventory.requests.edit');
     Route::get('/inventario/solicitudes/{inventoryRequest}/pdf', [InventoryRequestController::class, 'download'])->middleware('can:inventory.requests.manage')->name('inventory.requests.download');
@@ -113,6 +135,12 @@ Route::middleware(['auth', EnsureConfiguredModuleAccess::class])->group(function
     Route::resource('clientas', CustomerController::class)->middleware('can:customers.view')->parameters(['clientas' => 'customer'])->names('customers');
     Route::resource('equipo', EmployeeController::class)->middleware('can:settings.manage')->parameters(['equipo' => 'employee'])->names('employees');
     Route::resource('servicios', SalonServiceController::class)->middleware('can:settings.manage')->parameters(['servicios' => 'service'])->names('services');
+    Route::get('/productos/archivo', [ProductSpreadsheetController::class, 'download'])->middleware('can:products.export')->name('products.export');
+    Route::middleware('can:products.import')->group(function (): void {
+        Route::get('/productos/importar', [ProductSpreadsheetController::class, 'create'])->name('products.import.create');
+        Route::post('/productos/importar/revisar', [ProductSpreadsheetController::class, 'preview'])->name('products.import.preview');
+        Route::post('/productos/importar', [ProductSpreadsheetController::class, 'store'])->name('products.import.store');
+    });
     Route::get('/productos/catalogos', [ProductController::class, 'catalogs'])->middleware('can:products.manage')->name('products.catalogs');
     Route::post('/productos/catalogos/marcas', [ProductController::class, 'storeBrand'])->middleware('can:products.manage')->name('products.brands.store');
     Route::post('/productos/catalogos/categorias', [ProductController::class, 'storeCategory'])->middleware('can:products.manage')->name('products.categories.store');

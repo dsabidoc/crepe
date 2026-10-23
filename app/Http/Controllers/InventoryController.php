@@ -5,11 +5,48 @@ namespace App\Http\Controllers;
 use App\Models\InventoryBalance;
 use App\Models\InventoryLocation;
 use App\Models\ProductCategory;
+use App\Services\InventoryService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class InventoryController extends Controller
 {
+    public function depleteColorBar(Request $request, InventoryBalance $balance, InventoryService $inventory): RedirectResponse
+    {
+        abort_unless($balance->location->code === 'CB', 404);
+        $data = $request->validate([
+            'empty_stock' => ['nullable', 'boolean'],
+            'units' => ['required_unless:empty_stock,1', 'nullable', 'integer', 'min:1'],
+            'notes' => ['nullable', 'string', 'max:300'],
+        ]);
+
+        DB::transaction(function () use ($data, $request, $balance, $inventory): void {
+            $lockedBalance = InventoryBalance::query()->with('variant.product')->lockForUpdate()->findOrFail($balance->id);
+            $variant = $lockedBalance->variant;
+            abort_unless($variant->product->isColorBarSupply() && $variant->product->status === 'active', 422, 'Selecciona un insumo activo de Color Bar.');
+            $emptyStock = (bool) ($data['empty_stock'] ?? false);
+            $contentQuantity = (float) $variant->content_quantity;
+            $quantity = $emptyStock ? (float) $lockedBalance->available_quantity : round((int) $data['units'] * $contentQuantity, 3);
+            if ($quantity <= 0 || (! $emptyStock && $contentQuantity <= 0) || $quantity > (float) $lockedBalance->available_quantity) {
+                throw ValidationException::withMessages(['units' => 'No hay suficientes envases registrados para esta baja.']);
+            }
+
+            $units = (int) ($data['units'] ?? 0);
+            $reason = $emptyStock
+                ? 'Existencia registrada agotada en Color Bar.'
+                : $units.' '.($units === 1 ? 'envase agotado' : 'envases agotados').' en Color Bar.';
+            if (! empty($data['notes'])) {
+                $reason .= ' '.$data['notes'];
+            }
+            $inventory->move($variant->id, $lockedBalance->inventory_location_id, -$quantity, 'color_bar_depletion', $request->user()->id, InventoryBalance::class, $lockedBalance->id, $reason);
+        });
+
+        return redirect()->route('inventory.index', ['location' => 'CB'])->with('success', 'Baja de envases agotados registrada en el inventario de Color Bar.');
+    }
+
     public function index(Request $request): View
     {
         $location = $request->string('location')->toString();
@@ -17,8 +54,9 @@ class InventoryController extends Controller
         $categoryId = $request->integer('category');
         $lowStock = $request->boolean('low_stock');
         $locationModel = $location !== '' ? InventoryLocation::query()->where('code', $location)->first() : null;
-        $balances = InventoryBalance::query()->with(['variant.product', 'location'])
+        $balances = InventoryBalance::query()->with(['variant.product.preferredSupplier', 'location'])
             ->whereHas('variant.product', fn ($products) => $products->where('status', 'active'))
+            ->when($location === 'CB', fn ($query) => $query->whereHas('variant.product', fn ($products) => $products->colorBarSupplies()))
             ->when($location, fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', $location)))
             ->when($categoryId, fn ($query) => $query->whereHas('variant.product', fn ($products) => $products->where('product_category_id', $categoryId)))
             ->when($search, fn ($query) => $query->whereHas('variant', fn ($variants) => $variants

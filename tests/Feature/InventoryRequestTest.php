@@ -14,6 +14,25 @@ class InventoryRequestTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_inventory_request_form_has_smart_product_search_and_submit_actions_at_both_ends(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $receptionist = User::factory()->create();
+        $receptionist->assignRole('Recepción');
+
+        $response = $this->actingAs($receptionist)
+            ->withSession(['crepe.mode' => 'recepcion'])
+            ->get(route('inventory.requests.create', ['location' => 'REC']));
+
+        $response->assertOk()
+            ->assertSee('Buscar por producto, marca o presentación')
+            ->assertSee('data-inventory-request-search', false)
+            ->assertSee('data-search=', false)
+            ->assertSee('Productos seleccionados')
+            ->assertSee('data-inventory-request-summary-list', false);
+        $this->assertSame(2, substr_count($response->getContent(), '>Enviar solicitud<'));
+    }
+
     public function test_reception_request_can_be_partially_delivered_and_closed_without_pending_balance(): void
     {
         $this->seed(CrepeSeeder::class);
