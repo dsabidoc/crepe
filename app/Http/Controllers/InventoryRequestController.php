@@ -7,9 +7,11 @@ use App\Models\InventoryBalance;
 use App\Models\InventoryLocation;
 use App\Models\InventoryRequest;
 use App\Models\ProductVariant;
+use App\Services\InventoryRequestPdfService;
 use App\Services\InventoryService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -126,7 +128,16 @@ class InventoryRequestController extends Controller
         abort_unless($inventoryRequest->status === 'pending', 422, 'Esta solicitud ya fue cerrada.');
 
         return view('inventory.requests.process', [
-            'inventoryRequest' => $inventoryRequest->load(['sourceLocation', 'requester', 'items.variant.product', 'items.variant.balances' => fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', 'ALM'))]),
+            'inventoryRequest' => $inventoryRequest->load(['sourceLocation', 'requester', 'items.variant.product.preferredSupplier', 'items.variant.balances' => fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', 'ALM'))]),
+        ]);
+    }
+
+    public function download(InventoryRequest $inventoryRequest, InventoryRequestPdfService $pdf): Response
+    {
+        return response($pdf->render($inventoryRequest), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$inventoryRequest->code.'.pdf"',
+            'Cache-Control' => 'private, no-store',
         ]);
     }
 

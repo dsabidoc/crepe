@@ -71,6 +71,7 @@ Route::middleware(['auth', EnsureConfiguredModuleAccess::class])->group(function
     Route::get('/inventario/solicitudes/nueva', [InventoryRequestController::class, 'create'])->middleware('can:inventory.view')->name('inventory.requests.create');
     Route::post('/inventario/solicitudes', [InventoryRequestController::class, 'store'])->middleware('can:inventory.view')->name('inventory.requests.store');
     Route::get('/inventario/solicitudes/{inventoryRequest}/procesar', [InventoryRequestController::class, 'edit'])->middleware('can:inventory.requests.manage')->name('inventory.requests.edit');
+    Route::get('/inventario/solicitudes/{inventoryRequest}/pdf', [InventoryRequestController::class, 'download'])->middleware('can:inventory.requests.manage')->name('inventory.requests.download');
     Route::post('/inventario/solicitudes/{inventoryRequest}/cerrar', [InventoryRequestController::class, 'close'])->middleware('can:inventory.requests.manage')->name('inventory.requests.close');
     Route::get('/ordenes-compra', [PurchaseOrderController::class, 'index'])->middleware('can:inventory.requests.manage')->name('purchase-orders.index');
     Route::get('/ordenes-compra/nueva', [PurchaseOrderController::class, 'create'])->middleware('can:inventory.requests.manage')->name('purchase-orders.create');
