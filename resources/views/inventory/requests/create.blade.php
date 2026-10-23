@@ -4,7 +4,7 @@
     @csrf
     <input type="hidden" name="location" value="{{ $source->code }}">
 
-    <div class="request-unit-notice"><strong>Solicita por unidades de producto</strong><span>No necesitas indicar gramos, mililitros o litros. Almacén convertirá cada unidad a su contenido registrado.</span></div>
+    <div class="request-unit-notice"><strong>Solicita por unidades de producto</strong><span>No necesitas indicar gramos, mililitros o litros. Cada producto o envase completo cuenta como una unidad en el inventario.</span></div>
 
     <div class="inventory-request-workspace">
         <section class="inventory-request-catalog">
@@ -14,10 +14,9 @@
             <div class="inventory-request-product-grid">
                 @foreach($variants as $variant)
                     @php($stock = (float) $variant->balances->first()?->available_quantity)
-                    @php($content = max((float) $variant->content_quantity, .001))
-                    @php($availableUnits = (int) floor($stock / $content))
+                    @php($availableUnits = (int) floor($stock))
                     <label class="inventory-request-product" data-inventory-request-product data-product-id="{{ $variant->id }}" data-product-name="{{ $variant->product->name }}" data-product-brand="{{ $variant->product->brand ?: 'Sin marca' }}" data-product-supplier="{{ $variant->product->preferredSupplier?->name ?: 'Sin proveedor' }}" data-product-presentation="{{ $variant->name }}" data-search="{{ $variant->product->name }} {{ $variant->product->brand }} {{ $variant->name }} {{ $variant->sku }}">
-                        <div><strong>{{ $variant->product->name }}</strong><x-product-reference :product="$variant->product" /><small>{{ $variant->name }} · Presentación: {{ rtrim(rtrim(number_format($content, 3), '0'), '.') }} {{ $variant->base_unit }} · Disponibles: {{ $availableUnits }} unidades</small></div>
+                        <div><strong>{{ $variant->product->name }}</strong><x-product-reference :product="$variant->product" /><small>{{ $variant->name }} · Disponibles: {{ $availableUnits }} unidades</small></div>
                         <input type="hidden" name="items[{{ $variant->id }}][product_variant_id]" value="{{ $variant->id }}">
                         <input aria-label="Unidades de {{ $variant->product->name }}" type="number" name="items[{{ $variant->id }}][requested_units]" min="0" step="1" value="{{ old('items.'.$variant->id.'.requested_units', 0) }}" data-request-quantity>
                         <span>unidades</span>

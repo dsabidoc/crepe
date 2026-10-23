@@ -47,12 +47,11 @@ class ColorBarDepletionService
                 if (round((float) $balance->available_quantity, 3) !== $item['expected_quantity']) {
                     throw ValidationException::withMessages(['items' => 'La existencia de '.$balance->variant->product->name.' cambió. Revisa el saldo actualizado y confirma nuevamente; no se aplicó ninguna baja.']);
                 }
-                $content = (float) $balance->variant->content_quantity;
-                $quantity = $item['empty_stock'] ? (float) $balance->available_quantity : round($item['units'] * $content, 3);
-                if ($quantity <= 0 || (! $item['empty_stock'] && ($item['units'] < 1 || $content <= 0)) || $quantity > (float) $balance->available_quantity) {
+                $quantity = $item['empty_stock'] ? (float) $balance->available_quantity : $item['units'];
+                if ($quantity <= 0 || (! $item['empty_stock'] && $item['units'] < 1) || $quantity > (float) $balance->available_quantity) {
                     throw ValidationException::withMessages(['items' => 'No hay suficientes existencias de '.$balance->variant->product->name.'. Revisa las cantidades; no se aplicó ninguna baja.']);
                 }
-                if (($item['requested_units'] ?? 0) > 0 && ($content <= 0 || round($item['requested_units'] * $content, 3) > 99999999999.999)) {
+                if (($item['requested_units'] ?? 0) > 0 && ($item['requested_units'] > 99999999999)) {
                     throw ValidationException::withMessages(['items' => 'Revisa la cantidad solicitada y el contenido por envase de '.$balance->variant->product->name.'. No se aplicó ninguna baja.']);
                 }
                 $quantities[$balance->id] = $quantity;

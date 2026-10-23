@@ -20,8 +20,8 @@ class SpreadsheetImportTest extends TestCase
     use RefreshDatabase;
 
     #[TestWith(['ALM', 'SH-REST-STD', '0'])]
-    #[TestWith(['REC', 'SH-REST-STD', '8.125'])]
-    #[TestWith(['CB', 'KOL-71-STD', '1250.5'])]
+    #[TestWith(['REC', 'SH-REST-STD', '8'])]
+    #[TestWith(['CB', 'KOL-71-STD', '5'])]
     public function test_partial_csv_updates_only_the_selected_location_and_records_the_result(string $location, string $sku, string $quantity): void
     {
         $user = $this->warehouse();

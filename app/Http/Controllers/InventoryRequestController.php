@@ -67,7 +67,7 @@ class InventoryRequestController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['required', 'integer', Rule::exists('product_variants', 'id')],
             'items.*.requested_units' => ['nullable', 'integer', 'min:0'],
-            'items.*.requested_quantity' => ['nullable', 'numeric', 'min:0'],
+            'items.*.requested_quantity' => ['nullable', 'integer', 'min:0'],
         ]);
         $data['items'] = collect($data['items'])->map(function (array $item): array {
             $hasUnits = array_key_exists('requested_units', $item) && $item['requested_units'] !== null;
@@ -131,7 +131,7 @@ class InventoryRequestController extends Controller
     public function close(Request $request, InventoryRequest $inventoryRequest, InventoryService $inventory, WorkflowNotificationService $notifications): RedirectResponse
     {
         abort_unless($inventoryRequest->status === 'pending', 422, 'Esta solicitud ya fue cerrada.');
-        $data = $request->validate(['items' => ['required', 'array'], 'items.*' => ['required', 'numeric', 'min:0'], 'closure_notes' => ['nullable', 'string', 'max:600']]);
+        $data = $request->validate(['items' => ['required', 'array'], 'items.*' => ['required', 'integer', 'min:0'], 'closure_notes' => ['nullable', 'string', 'max:600']]);
         $before = $inventoryRequest->load('items')->toArray();
 
         DB::transaction(function () use ($data, $request, $inventoryRequest, $inventory, $notifications): void {
@@ -139,23 +139,18 @@ class InventoryRequestController extends Controller
             abort_unless($lockedRequest->status === 'pending', 422, 'Esta solicitud ya fue cerrada.');
             $warehouse = InventoryLocation::query()->where('code', 'ALM')->firstOrFail();
             foreach ($lockedRequest->items as $item) {
-                $requested = (float) $item->requested_quantity;
-                $contentQuantity = max((float) $item->variant->content_quantity, 0.001);
-                $requestedUnits = $item->requested_units !== null ? (int) $item->requested_units : null;
-                $enteredUnits = (float) ($data['items'][$item->id] ?? 0);
-                $entered = $requestedUnits === null ? $enteredUnits : $enteredUnits * $contentQuantity;
+                $requested = $item->requestedInventoryUnits();
+                $entered = (int) ($data['items'][$item->id] ?? 0);
                 if ($entered > $requested) {
                     throw ValidationException::withMessages(["items.{$item->id}" => 'No puedes entregar más de lo solicitado.']);
                 }
                 $stock = (float) InventoryBalance::query()->where('inventory_location_id', $warehouse->id)->where('product_variant_id', $item->product_variant_id)->value('available_quantity');
-                $delivered = $requestedUnits === null
-                    ? min($entered, $stock)
-                    : min(floor($enteredUnits), $requestedUnits, floor($stock / $contentQuantity)) * $contentQuantity;
+                $delivered = (int) min($entered, $requested, floor($stock));
                 if ($delivered > 0) {
                     $inventory->move($item->product_variant_id, $warehouse->id, -$delivered, 'transfer_out', $request->user()->id, InventoryRequest::class, $lockedRequest->id, "Salida {$lockedRequest->code}");
                     $inventory->move($item->product_variant_id, $lockedRequest->source_location_id, $delivered, 'transfer_in', $request->user()->id, InventoryRequest::class, $lockedRequest->id, "Entrega {$lockedRequest->code}");
                 }
-                $item->update(['delivered_quantity' => $delivered, 'delivered_units' => $requestedUnits === null ? null : (int) round($delivered / $contentQuantity)]);
+                $item->update(['delivered_quantity' => $delivered, 'delivered_units' => $delivered]);
             }
             $lockedRequest->update(['status' => 'closed', 'processed_by' => $request->user()->id, 'processed_at' => now(), 'closure_notes' => $data['closure_notes'] ?? null]);
             $notifications->inventoryRequestClosed($lockedRequest);

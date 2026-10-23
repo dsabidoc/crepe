@@ -5,10 +5,9 @@
         @if($inventoryRequest->processed_at)<p>{{ $inventoryRequest->processor?->name }} · {{ $inventoryRequest->processed_at->format('d/m/Y H:i') }}</p>@endif
         <div class="notification-delivery-list">
             @foreach($inventoryRequest->items as $item)
-                @php($usesUnits = $item->requested_units !== null)
-                @php($requested = $usesUnits ? $item->requested_units : (float) $item->requested_quantity)
-                @php($delivered = $usesUnits ? ($item->delivered_units ?? 0) : (float) $item->delivered_quantity)
-                <article class="notification-delivery-row {{ $inventoryRequest->status === 'closed' && $delivered < $requested ? 'is-partial' : '' }}"><div><strong>{{ $item->variant->product->name }}</strong><small>{{ $item->variant->name }}</small></div><span>{{ $inventoryRequest->status === 'closed' ? 'Entregado: '.$delivered.' de ' : 'Solicitado: ' }}{{ $requested }} {{ $usesUnits ? 'unidades' : $item->unit }}</span></article>
+                @php($requested = $item->requestedInventoryUnits())
+                @php($delivered = $item->deliveredInventoryUnits())
+                <article class="notification-delivery-row {{ $inventoryRequest->status === 'closed' && $delivered < $requested ? 'is-partial' : '' }}"><div><strong>{{ $item->variant->product->name }}</strong><small>{{ $item->variant->name }}</small></div><span>{{ $inventoryRequest->status === 'closed' ? 'Entregado: '.$delivered.' de ' : 'Solicitado: ' }}{{ $requested }} unidades</span></article>
             @endforeach
         </div>
         @if($inventoryRequest->notes)<p><strong>Solicitud:</strong> {{ $inventoryRequest->notes }}</p>@endif

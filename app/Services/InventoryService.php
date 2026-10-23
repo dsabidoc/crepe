@@ -18,6 +18,10 @@ class InventoryService
 
     public function move(int $variantId, int $locationId, float $quantity, string $type, int $actorId, ?string $referenceType = null, ?int $referenceId = null, ?string $reason = null): InventoryMovement
     {
+        if (! is_finite($quantity) || $quantity !== floor($quantity)) {
+            throw ValidationException::withMessages(['quantity' => 'El inventario se registra en unidades enteras. Los gramos se capturan únicamente en las fórmulas.']);
+        }
+
         return DB::transaction(function () use ($variantId, $locationId, $quantity, $type, $actorId, $referenceType, $referenceId, $reason): InventoryMovement {
             $balance = InventoryBalance::query()->where('product_variant_id', $variantId)->where('inventory_location_id', $locationId)->lockForUpdate()->first();
             if (! $balance) {
@@ -67,6 +71,6 @@ class InventoryService
             $order->update(['code' => 'OC-'.str_pad((string) $order->id, 6, '0', STR_PAD_LEFT)]);
         }
         $targetQuantity = max((float) $variant->maximum_stock, (float) $variant->minimum_stock);
-        $order->items()->create(['product_variant_id' => $variant->id, 'ordered_quantity' => max($targetQuantity - $availableQuantity, 0.001), 'cost_snapshot' => $variant->cost]);
+        $order->items()->create(['product_variant_id' => $variant->id, 'ordered_quantity' => max((int) ceil($targetQuantity - $availableQuantity), 1), 'cost_snapshot' => $variant->cost]);
     }
 }

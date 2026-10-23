@@ -27,7 +27,7 @@ class InventorySpreadsheetService
             $product = $variant->product;
             $quantity = $this->decimal($balance->available_quantity);
 
-            return [$balance->id, $variant->sku ?? '', $product->name, $variant->name, $product->brand ?? '', $product->category?->name ?? '', $product->preferredSupplier?->name ?? '', $variant->base_unit, $quantity, $quantity, $variant->minimum_stock, $variant->maximum_stock ?? '0', $this->signature($balance, $quantity, $locationCode)];
+            return [$balance->id, $variant->sku ?? '', $product->name, $variant->name, $product->brand ?? '', $product->category?->name ?? '', $product->preferredSupplier?->name ?? '', 'unidad', $quantity, $quantity, $variant->minimum_stock, $variant->maximum_stock ?? '0', $this->signature($balance, $quantity, $locationCode)];
         })->values()->all();
 
         if ($format === 'csv') {
@@ -38,14 +38,14 @@ class InventorySpreadsheetService
             ['INVENTARIO · '.$this->locationName($locationCode).' · CREPÉ'], ['Descargado: '.now()->format('d/m/Y H:i')],
             ['Incluye todas las existencias activas de esta ubicación, sin filtros ni paginación.'],
             ['Edita únicamente Existencia nueva. Es el conteo final, no una entrada de mercancía.'],
-            ['Unidad indica la unidad base: g, ml, l o unidad. En Color Bar captura gramos o mililitros, no envases.'],
+            ['Unidad indica productos o envases completos. Almacén, Recepción e insumos de Color Bar se cuentan en unidades.'],
             ['Puedes quitar filas; solo se actualizan las incluidas. No se agregan ni eliminan productos.'],
             ['Conserva encabezados, ID, Existencia original, Control y la hoja Inventario. No uses fórmulas.'],
-            ['Cantidades desde 0 hasta 99999999999.999, con hasta 3 decimales. 0 vacía la existencia.'],
+            ['Cantidades enteras desde 0 hasta 99999999999. No captures gramos ni fracciones. 0 vacía la existencia.'],
             ['Selecciona la misma ubicación al subir. Si hubo movimientos, descarga de nuevo.'],
             ['Los datos de catálogo y mínimos/máximos son informativos. Se editan desde Productos.'],
             ['Revisa y confirma los ajustes con un motivo. Cada movimiento queda en la bitácora.'],
-        ]);
+        ], precisions: [8 => 0, 9 => 0, 10 => 0, 11 => 0]);
     }
 
     /** @return array{changes: list<array{id: int, variant_id: int, row: int, name: string, sku: string, unit: string, variant_control: string, before: string, after: string}>, unchanged: int, total: int, errors?: list<string>} */
@@ -89,8 +89,8 @@ class InventorySpreadsheetService
                 continue;
             }
             $target = $row['J'] ?? '';
-            if (! preg_match('/^[0-9]{1,11}(?:\\.[0-9]{1,3})?$/D', $target)) {
-                $errors[] = "Fila {$number}: Existencia nueva debe ser un número entre 0 y 99999999999.999, con hasta 3 decimales.";
+            if (! preg_match('/^[0-9]{1,11}(?:\\.0{1,3})?$/D', $target)) {
+                $errors[] = "Fila {$number}: Existencia nueva debe ser un número entero entre 0 y 99999999999 unidades.";
 
                 continue;
             }
@@ -109,7 +109,7 @@ class InventorySpreadsheetService
             $changes[] = [
                 'id' => $balance->id, 'variant_id' => $balance->product_variant_id, 'row' => $number,
                 'name' => $balance->variant->product->name.' · '.$balance->variant->name,
-                'sku' => $balance->variant->sku ?? '', 'unit' => $balance->variant->base_unit,
+                'sku' => $balance->variant->sku ?? '', 'unit' => 'unidad',
                 'variant_control' => $this->variantControl($balance),
                 'before' => $before, 'after' => $after,
             ];

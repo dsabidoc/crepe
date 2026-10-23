@@ -35,7 +35,7 @@ class InventoryWorkbook
                 ['Descargado: '.now()->format('d/m/Y H:i')],
                 ['Incluye todas las existencias de productos activos de Almacén, sin filtros ni paginación.'],
                 ['1. Edita únicamente Existencia nueva (columna J, en verde). Es la cantidad final, no una entrada o salida.'],
-                ['2. Usa números desde 0 hasta 99999999999.999, con hasta 3 decimales. Para vaciar una existencia escribe 0.'],
+                ['2. Usa unidades enteras desde 0 hasta 99999999999. Para vaciar una existencia escribe 0.'],
                 ['3. Conserva los encabezados, ID, Existencia original, Control y el nombre de la hoja Inventario.'],
                 ['4. Puedes ordenar filas completas o quitar las que no quieras actualizar. No se eliminan productos.'],
                 ['5. Guarda como .xlsx. Sube el archivo, revisa la vista previa y confirma los cambios. No uses fórmulas.'],

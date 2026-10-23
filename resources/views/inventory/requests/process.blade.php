@@ -30,16 +30,14 @@
             @foreach($inventoryRequest->items as $item)
                 @php
                     $stock = (float) $item->variant->balances->first()?->available_quantity;
-                    $content = max((float) $item->variant->content_quantity, .001);
-                    $unitMode = $item->requested_units !== null;
-                    $requestedUnits = $unitMode ? (int) $item->requested_units : null;
-                    $availableUnits = $unitMode ? (int) floor($stock / $content) : null;
-                    $max = $unitMode ? min($requestedUnits, $availableUnits) : min((float) $item->requested_quantity, $stock);
+                    $requestedUnits = $item->requestedInventoryUnits();
+                    $availableUnits = (int) floor($stock);
+                    $max = min($requestedUnits, $availableUnits);
                 @endphp
                 <label class="request-process-card">
                     <div>
                         <strong>{{ $item->variant->product->name }}</strong>
-                        <small>{{ $item->variant->name }} · Solicitado: {{ $unitMode ? $requestedUnits.' unidades' : rtrim(rtrim(number_format((float) $item->requested_quantity, 3), '0'), '.').' '.$item->unit }} · Disponible: {{ $unitMode ? $availableUnits.' unidades' : rtrim(rtrim(number_format($stock, 3), '0'), '.').' '.$item->unit }}</small>
+                        <small>{{ $item->variant->name }} · Solicitado: {{ $requestedUnits }} unidades · Disponible: {{ $availableUnits }} unidades</small>
                     </div>
                     <div class="request-product-references">
                         <x-product-reference :product="$item->variant->product" field="brand" />
@@ -47,8 +45,8 @@
                     </div>
                     <div class="request-delivery">
                         <span>Entregar</span>
-                        <input aria-label="Unidades de {{ $item->variant->product->name }}" type="number" name="items[{{ $item->id }}]" min="0" max="{{ $max }}" step="{{ $unitMode ? 1 : '.001' }}" value="{{ old('items.'.$item->id, $max) }}">
-                        <span>{{ $unitMode ? 'unidades' : $item->unit }}</span>
+                        <input aria-label="Unidades de {{ $item->variant->product->name }}" type="number" name="items[{{ $item->id }}]" min="0" max="{{ $max }}" step="1" value="{{ old('items.'.$item->id, $max) }}">
+                        <span>unidades</span>
                     </div>
                 </label>
             @endforeach

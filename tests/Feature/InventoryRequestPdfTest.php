@@ -48,10 +48,10 @@ class InventoryRequestPdfTest extends TestCase
         }
         $this->assertGreaterThan(1, preg_match_all('~/Type /Page\s~', $pdf));
         $this->assertStringContainsString('(7) Tj', $pdf);
-        $this->assertStringContainsString('(2) Tj', $pdf);
+        $this->assertStringContainsString('(2,500) Tj', $pdf);
         $this->assertStringContainsString('(unidades) Tj', $pdf);
         $this->assertStringContainsString('(12.5) Tj', $pdf);
-        $this->assertStringContainsString('(gr) Tj', $pdf);
+        $this->assertStringNotContainsString('(gr) Tj', $pdf);
         $this->assertStringNotContainsString('(7,000) Tj', $pdf);
         $this->assertSame($beforeRequest, $request->fresh()->getAttributes());
         $this->assertSame($beforeBalances, InventoryBalance::query()->get()->toArray());

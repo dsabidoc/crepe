@@ -28,9 +28,8 @@ class InventoryController extends Controller
             $variant = $lockedBalance->variant;
             abort_unless($variant->product->isColorBarSupply() && $variant->product->status === 'active', 422, 'Selecciona un insumo activo de Color Bar.');
             $emptyStock = (bool) ($data['empty_stock'] ?? false);
-            $contentQuantity = (float) $variant->content_quantity;
-            $quantity = $emptyStock ? (float) $lockedBalance->available_quantity : round((int) $data['units'] * $contentQuantity, 3);
-            if ($quantity <= 0 || (! $emptyStock && $contentQuantity <= 0) || $quantity > (float) $lockedBalance->available_quantity) {
+            $quantity = $emptyStock ? (float) $lockedBalance->available_quantity : (int) $data['units'];
+            if ($quantity <= 0 || $quantity > (float) $lockedBalance->available_quantity) {
                 throw ValidationException::withMessages(['units' => 'No hay suficientes envases registrados para esta baja.']);
             }
 

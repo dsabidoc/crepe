@@ -34,10 +34,10 @@ class ColorBarDepletionBatchTest extends TestCase
         $this->assertSame($user->id, $batch->created_by);
         $this->assertSame('Turno de la mañana', $batch->notes);
         $this->assertSame(2, $batch->movements()->count());
-        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 1000]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 1]);
         $this->assertDatabaseHas('inventory_balances', ['id' => $second->id, 'available_quantity' => 0]);
-        $this->assertDatabaseHas('inventory_movements', ['reference_type' => ColorBarDepletionBatch::class, 'reference_id' => $batch->id, 'product_variant_id' => $first->product_variant_id, 'quantity' => -1000, 'before_quantity' => 2000, 'after_quantity' => 1000, 'created_by' => $user->id]);
-        $this->assertDatabaseHas('inventory_movements', ['reference_type' => ColorBarDepletionBatch::class, 'reference_id' => $batch->id, 'product_variant_id' => $second->product_variant_id, 'quantity' => -965, 'after_quantity' => 0]);
+        $this->assertDatabaseHas('inventory_movements', ['reference_type' => ColorBarDepletionBatch::class, 'reference_id' => $batch->id, 'product_variant_id' => $first->product_variant_id, 'quantity' => -1, 'before_quantity' => 2, 'after_quantity' => 1, 'created_by' => $user->id]);
+        $this->assertDatabaseHas('inventory_movements', ['reference_type' => ColorBarDepletionBatch::class, 'reference_id' => $batch->id, 'product_variant_id' => $second->product_variant_id, 'quantity' => -1, 'after_quantity' => 0]);
         $this->assertSame($beforeOther, InventoryBalance::whereNotIn('id', [$first->id, $second->id])->orderBy('id')->get()->toArray());
         $this->get(route('color-bar.index'))->assertOk()->assertViewHas('variants', fn ($variants) => $variants->contains('id', $second->product_variant_id));
         $this->get(route('inventory.color-bar.depletions.create'))->assertOk()->assertSee('Baja #'.$batch->id)->assertSee('Turno de la mañana');
@@ -53,14 +53,14 @@ class ColorBarDepletionBatchTest extends TestCase
         $this->post(route('inventory.color-bar.depletions.store'), $payload)->assertSessionHasNoErrors();
         $this->assertDatabaseCount('color_bar_depletion_batches', 1);
         $this->assertDatabaseCount('inventory_movements', $movements);
-        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 1000]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 1]);
         $payload['items'][0]['units'] = 2;
         $this->post(route('inventory.color-bar.depletions.store'), $payload)->assertSessionHasErrors('items');
         $this->assertDatabaseCount('inventory_movements', $movements);
     }
 
     #[TestWith([0])]
-    #[TestWith([1965])]
+    #[TestWith([3])]
     public function test_if_stock_changes_before_confirmation_no_part_of_the_batch_is_applied(float $newStock): void
     {
         [$user, $first, $second] = $this->inventory();
@@ -71,7 +71,7 @@ class ColorBarDepletionBatchTest extends TestCase
         $this->actingAs($user)->from(route('inventory.color-bar.depletions.create'))->post(route('inventory.color-bar.depletions.store'), $payload)
             ->assertSessionHasErrors(['items' => 'La existencia de '.$second->variant->product->name.' cambió. Revisa el saldo actualizado y confirma nuevamente; no se aplicó ninguna baja.']);
 
-        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 2000]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 2]);
         $this->assertDatabaseHas('inventory_balances', ['id' => $second->id, 'available_quantity' => $newStock]);
         $this->assertDatabaseCount('inventory_movements', $beforeMovements);
         $this->assertDatabaseCount('color_bar_depletion_batches', 0);
@@ -155,8 +155,8 @@ class ColorBarDepletionBatchTest extends TestCase
         $this->assertSame('CB', $request->sourceLocation->code);
         $this->assertSame('pending', $request->status);
         $this->assertSame(1, $request->items()->count());
-        $this->assertDatabaseHas('inventory_request_items', ['inventory_request_id' => $request->id, 'product_variant_id' => $first->product_variant_id, 'requested_units' => 3, 'requested_quantity' => 3000]);
-        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 1000]);
+        $this->assertDatabaseHas('inventory_request_items', ['inventory_request_id' => $request->id, 'product_variant_id' => $first->product_variant_id, 'requested_units' => 3, 'requested_quantity' => 3]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 1]);
         $this->assertDatabaseHas('inventory_balances', ['id' => $second->id, 'available_quantity' => 0]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'inventory.request.created', 'subject_id' => $request->id, 'user_id' => $user->id]);
         $this->assertDatabaseHas('notifications', ['type' => 'inventory.request.pending', 'notifiable_id' => $warehouseUser->id, 'subject_id' => $request->id]);
@@ -182,12 +182,12 @@ class ColorBarDepletionBatchTest extends TestCase
         $this->actingAs($user)->post(route('inventory.color-bar.depletions.store'), $payload)->assertSessionHasErrors('items');
         $this->assertDatabaseCount('inventory_requests', 0);
         $this->assertDatabaseCount('color_bar_depletion_batches', 0);
-        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 2000]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 2]);
         $payload['items'][1]['expected_quantity'] = 500;
         $this->post(route('inventory.color-bar.depletions.store'), $payload)->assertSessionHasNoErrors();
         $this->assertDatabaseCount('inventory_requests', 1);
         $this->assertDatabaseCount('inventory_request_items', 2);
-        $this->assertDatabaseHas('inventory_request_items', ['product_variant_id' => $second->product_variant_id, 'requested_units' => 2, 'requested_quantity' => 2000]);
+        $this->assertDatabaseHas('inventory_request_items', ['product_variant_id' => $second->product_variant_id, 'requested_units' => 2, 'requested_quantity' => 2]);
     }
 
     public function test_request_failure_rolls_back_depletions_request_and_audit(): void
@@ -225,7 +225,7 @@ class ColorBarDepletionBatchTest extends TestCase
         $this->actingAs($user)->post(route('inventory.color-bar.depletions.store'), $payload)->assertSessionHasErrors('items.0.requested_units');
         $this->assertDatabaseCount('inventory_requests', 0);
         $this->assertDatabaseCount('color_bar_depletion_batches', 0);
-        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 2000]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 2]);
     }
 
     public function test_legacy_batch_hash_is_compatible_with_zero_replenishment_fields(): void
@@ -241,7 +241,7 @@ class ColorBarDepletionBatchTest extends TestCase
         $this->actingAs($user)->post(route('inventory.color-bar.depletions.store'), $payload)->assertSessionHasNoErrors();
         $this->assertDatabaseCount('color_bar_depletion_batches', 1);
         $this->assertDatabaseCount('inventory_requests', 0);
-        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 2000]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $first->id, 'available_quantity' => 2]);
     }
 
     /** @return array{User, InventoryBalance, InventoryBalance} */
@@ -256,8 +256,8 @@ class ColorBarDepletionBatchTest extends TestCase
             $balance->variant->update(['content_quantity' => 1000]);
             $balance->variant->product->update(['is_color_bar_supply' => true]);
         }
-        $balances[0]->update(['available_quantity' => 2000]);
-        $balances[1]->update(['available_quantity' => 965]);
+        $balances[0]->update(['available_quantity' => 2]);
+        $balances[1]->update(['available_quantity' => 1]);
 
         return [$user, $balances[0], $balances[1]];
     }

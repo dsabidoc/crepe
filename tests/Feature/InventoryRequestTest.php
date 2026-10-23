@@ -91,7 +91,7 @@ class InventoryRequestTest extends TestCase
             ->assertSee('Esta área no está disponible para tu perfil.');
     }
 
-    public function test_inventory_requests_use_product_units_and_convert_to_base_stock_on_delivery(): void
+    public function test_inventory_requests_use_product_units_without_converting_to_grams(): void
     {
         $this->seed(CrepeSeeder::class);
         $colorBar = User::factory()->create();
@@ -108,13 +108,13 @@ class InventoryRequestTest extends TestCase
         $inventoryRequest = InventoryRequest::query()->with('items')->firstOrFail();
         $item = $inventoryRequest->items->firstOrFail();
         $this->assertSame(1, $item->requested_units);
-        $this->assertSame(1000.0, (float) $item->requested_quantity);
+        $this->assertSame(1.0, (float) $item->requested_quantity);
 
         $this->actingAs($warehouse)->withSession(['crepe.mode' => 'almacen'])->post(route('inventory.requests.close', $inventoryRequest), [
             'items' => [$item->id => 1],
         ])->assertRedirect();
 
-        $this->assertDatabaseHas('inventory_request_items', ['id' => $item->id, 'delivered_units' => 1, 'delivered_quantity' => 1000]);
-        $this->assertSame(4000.0, (float) InventoryBalance::query()->where('product_variant_id', $variant->id)->whereHas('location', fn ($query) => $query->where('code', 'ALM'))->value('available_quantity'));
+        $this->assertDatabaseHas('inventory_request_items', ['id' => $item->id, 'delivered_units' => 1, 'delivered_quantity' => 1]);
+        $this->assertSame(4999.0, (float) InventoryBalance::query()->where('product_variant_id', $variant->id)->whereHas('location', fn ($query) => $query->where('code', 'ALM'))->value('available_quantity'));
     }
 }

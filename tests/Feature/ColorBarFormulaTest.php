@@ -17,7 +17,7 @@ class ColorBarFormulaTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_color_bar_confirms_a_cart_of_products_and_deducts_only_its_location(): void
+    public function test_color_bar_confirms_a_cart_of_products_without_changing_inventory(): void
     {
         $this->seed(CrepeSeeder::class);
         $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
@@ -35,11 +35,11 @@ class ColorBarFormulaTest extends TestCase
         $formula = ColorFormula::query()->where('ticket_id', $ticket->id)->latest()->firstOrFail();
         $this->assertDatabaseHas('color_formulas', ['id' => $formula->id, 'status' => 'confirmed', 'notes' => 'Formula de prueba']);
         $this->assertDatabaseHas('color_formula_items', ['color_formula_id' => $formula->id, 'product_variant_id' => $variant->id, 'notes' => 'Aplicación de raíz']);
-        $this->assertDatabaseHas('inventory_movements', ['product_variant_id' => $variant->id, 'type' => 'color_consumption', 'reference_id' => $formula->id]);
-        $this->assertSame($startingQuantity - 35, (float) $balance->fresh()->available_quantity);
+        $this->assertDatabaseMissing('inventory_movements', ['product_variant_id' => $variant->id, 'type' => 'color_consumption', 'reference_id' => $formula->id]);
+        $this->assertSame($startingQuantity, (float) $balance->fresh()->available_quantity);
     }
 
-    public function test_correcting_a_formula_creates_a_reversal_and_a_replacement(): void
+    public function test_correcting_a_formula_replaces_its_charges_without_changing_inventory(): void
     {
         $this->seed(CrepeSeeder::class);
         $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
@@ -63,10 +63,10 @@ class ColorBarFormulaTest extends TestCase
         $replacementFormula = ColorFormula::query()->where('supersedes_color_formula_id', $originalFormula->id)->firstOrFail();
         $this->assertDatabaseHas('color_formulas', ['id' => $originalFormula->id, 'status' => 'corrected']);
         $this->assertDatabaseHas('color_formulas', ['id' => $replacementFormula->id, 'status' => 'confirmed']);
-        $this->assertDatabaseHas('inventory_movements', ['product_variant_id' => $variant->id, 'type' => 'color_correction_reversal', 'reference_id' => $originalFormula->id]);
+        $this->assertDatabaseMissing('inventory_movements', ['product_variant_id' => $variant->id, 'type' => 'color_correction_reversal', 'reference_id' => $originalFormula->id]);
         $this->assertSame('reversed', $originalTicketItem->fresh()->status);
-        $this->assertSame($startingQuantity - 40, (float) InventoryBalance::query()->where('product_variant_id', $variant->id)->whereHas('location', fn ($query) => $query->where('code', 'CB'))->firstOrFail()->available_quantity);
-        $this->assertSame(3, InventoryMovement::query()->whereIn('reference_id', [$originalFormula->id, $replacementFormula->id])->whereIn('type', ['color_consumption', 'color_correction_reversal'])->count());
+        $this->assertSame($startingQuantity, (float) InventoryBalance::query()->where('product_variant_id', $variant->id)->whereHas('location', fn ($query) => $query->where('code', 'CB'))->firstOrFail()->available_quantity);
+        $this->assertSame(0, InventoryMovement::query()->whereIn('reference_id', [$originalFormula->id, $replacementFormula->id])->whereIn('type', ['color_consumption', 'color_correction_reversal'])->count());
     }
 
     public function test_reception_cannot_display_or_sell_color_bar_products(): void

@@ -21,7 +21,7 @@
         <span class="record-count">{{ $products->total() }} productos</span>
     </header>
     <div class="data-table product-data-table product-catalog-table">
-        <div class="table-head"><span>PRODUCTO</span><span>MARCA</span><span>PROVEEDOR</span><span>CATEGORÍA</span><span>CONTENIDO</span><span>VENTA</span><span></span></div>
+        <div class="table-head"><span>PRODUCTO</span><span>MARCA</span><span>PROVEEDOR</span><span>CATEGORÍA</span><span>UNIDAD</span><span>VENTA</span><span></span></div>
         @forelse($products as $product)
             @php($variant = $product->variants->first())
             <a class="table-row" href="{{ route('products.edit', $product) }}">
@@ -29,7 +29,7 @@
                 <x-product-reference :product="$product" field="brand" />
                 <x-product-reference :product="$product" field="supplier" />
                 <span data-label="Categoría">{{ $product->category?->name ?? 'Sin categoría' }}</span>
-                <span data-label="Contenido">{{ $variant?->content_quantity !== null ? rtrim(rtrim(number_format((float) $variant->content_quantity, 3), '0'), '.') : '' }} {{ $variant?->base_unit }}</span>
+                <span data-label="Unidad de inventario">Unidad</span>
                 <strong data-label="Venta">
                     @if($product->is_reception_usable)Recepción ${{ number_format((float) ($variant?->sale_price ?? 0), 2) }}@endif
                     @if($product->is_color_bar_usable)

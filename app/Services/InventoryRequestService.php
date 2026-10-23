@@ -34,9 +34,9 @@ class InventoryRequestService
                 $variant = $variants[(int) $item['product_variant_id']];
                 $inventoryRequest->items()->create([
                     'product_variant_id' => $variant->id,
-                    'requested_quantity' => $item['requested_units'] !== null ? $item['requested_units'] * (float) $variant->content_quantity : $item['requested_quantity'],
-                    'requested_units' => $item['requested_units'],
-                    'unit' => $variant->base_unit,
+                    'requested_quantity' => $item['requested_units'] ?? $item['requested_quantity'],
+                    'requested_units' => $item['requested_units'] ?? (int) $item['requested_quantity'],
+                    'unit' => 'unidad',
                 ]);
             }
 

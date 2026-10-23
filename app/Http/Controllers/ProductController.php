@@ -150,6 +150,7 @@ class ProductController extends Controller
     private function validated(Request $request, ?Product $product = null): array
     {
         $variant = $product?->variants()->first();
+        $request->merge(['base_unit' => $variant?->base_unit ?? 'unidad', 'content_quantity' => $variant?->content_quantity ?? 1]);
         $data = $request->validate([
             'product_category_id' => ['required', Rule::exists('product_categories', 'id')],
             'name' => ['required', 'string', 'max:150'], 'product_brand_id' => ['nullable', Rule::exists('product_brands', 'id')->where('is_active', true)],
@@ -161,6 +162,11 @@ class ProductController extends Controller
             'cost' => ['required', 'numeric', 'min:0'], 'sale_price' => ['nullable', 'numeric', 'min:0'], 'color_bar_pricing_type' => ['nullable', Rule::in(['fixed', 'multiplier', 'both'])], 'color_bar_sale_price' => ['nullable', 'numeric', 'min:0'], 'minimum_stock' => ['required', 'numeric', 'min:0'], 'maximum_stock' => ['nullable', 'numeric', 'gte:minimum_stock'],
             'photos' => ['nullable', 'array', 'max:5'], 'photos.*' => ['nullable', File::image()->max('8mb')],
         ]);
+        foreach (['minimum_stock', 'maximum_stock'] as $field) {
+            if (isset($data[$field]) && (float) $data[$field] !== floor((float) $data[$field])) {
+                throw ValidationException::withMessages([$field => 'El stock mínimo y máximo deben ser cantidades enteras de unidades.']);
+            }
+        }
         $data['is_color_bar_usable'] = $request->boolean('is_color_bar_usable');
         $data['is_color_bar_supply'] = $request->has('is_color_bar_supply')
             ? $request->boolean('is_color_bar_supply')

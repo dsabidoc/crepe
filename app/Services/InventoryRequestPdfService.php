@@ -25,10 +25,9 @@ class InventoryRequestPdfService
                 $this->wrap('Proveedor: '.($product->preferredSupplier?->name ?: 'Sin proveedor'), 268, 9),
             );
             $stock = (float) $variant->balances->first()?->available_quantity;
-            $unitMode = $item->requested_units !== null;
-            $requested = $unitMode ? $item->requested_units : (float) $item->requested_quantity;
-            $available = $unitMode ? floor($stock / max((float) $variant->content_quantity, .001)) : $stock;
-            $unit = $unitMode ? 'unidades' : $item->unit;
+            $requested = $item->requestedInventoryUnits();
+            $available = $stock;
+            $unit = 'unidades';
             $height = max(76, count($name) * 14 + count($details) * 12 + 22);
 
             if ($y - $height < 58) {

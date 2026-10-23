@@ -52,7 +52,7 @@ class TicketController extends Controller
             'products' => ['required', 'array', 'min:1'],
             'products.*.product_variant_id' => ['required', 'integer', 'distinct', Rule::exists('product_variants', 'id')],
             'products.*.selected' => ['nullable', 'boolean'],
-            'products.*.quantity' => ['nullable', 'numeric', 'min:1'],
+            'products.*.quantity' => ['nullable', 'integer', 'min:1'],
             'products.*.employee_id' => ['nullable', Rule::exists('employees', 'id')->where('status', 'active')],
         ]);
         $products = collect($data['products'])->filter(fn (array $product): bool => (bool) ($product['selected'] ?? false));
@@ -309,7 +309,7 @@ class TicketController extends Controller
     {
         abort_if($ticket->ticket_type === 'product_sale' && ! $request->user()->can('mode.reception.access'), 403);
         abort_if($ticket->status === 'paid', 422);
-        $data = $request->validate(['product_variant_id' => ['required', Rule::exists('product_variants', 'id')], 'quantity' => ['required', 'numeric', 'min:1'], 'employee_id' => ['nullable', Rule::exists('employees', 'id')->where('status', 'active')]]);
+        $data = $request->validate(['product_variant_id' => ['required', Rule::exists('product_variants', 'id')], 'quantity' => ['required', 'integer', 'min:1'], 'employee_id' => ['nullable', Rule::exists('employees', 'id')->where('status', 'active')]]);
         $variant = ProductVariant::query()->with('product')->findOrFail($data['product_variant_id']);
         abort_if(
             $variant->product->status !== 'active' || $variant->product->is_color_bar_usable || (float) $variant->sale_price <= 0,

@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
-use App\Models\InventoryMovement;
 use App\Models\Product;
 use App\Models\ProductBrand;
 use App\Models\ProductCategory;
@@ -61,7 +60,7 @@ class ProductSpreadsheetService
             ['En actualizaciones los campos vacíos conservan el valor actual; 0 es un valor.'],
             ['Escribe [BORRAR] para quitar marca, proveedor, descripción o máximo. Los otros campos no se pueden borrar.'],
             ['Usa categorías, marcas y proveedores ya registrados. Las marcas y proveedores nuevos deben estar activos.'],
-            ['Unidad: g, ml, l o unidad. Contenido y existencias usan esa unidad; no se cambian unidades con movimientos.'],
+            ['Unidad de inventario: unidad. Contenido: 1. Los gramos se capturan únicamente en fórmulas; no cambies los datos históricos de presentación.'],
             ['Recepción, Fórmulas e Insumo Color Bar: 1 o 0. Estado: active o inactive. Cobro Color Bar: fixed, multiplier o both.'],
             ['Al menos un uso debe ser 1. multiplier y both requieren categoría con multiplicador. both permite aplicación y gramos.'],
             ['Altas: SKU producto, SKU presentación, Producto, Presentación, Categoría, Unidad, Contenido y Costo obligatorios.'],
@@ -69,7 +68,7 @@ class ProductSpreadsheetService
             ['Esta carga no modifica existencias. Usa Inventario para registrar un conteo físico.'],
         ];
 
-        return $this->workbook->write($rows, array_values(self::Columns), 'Productos', $instructions, range(1, 20), [0, 10, 11, 12, 13, 15, 16, 17, 18, 19], [9 => ['g', 'ml', 'l', 'unidad'], 14 => ['fixed', 'multiplier', 'both'], 17 => ['0', '1'], 18 => ['0', '1'], 19 => ['0', '1'], 20 => ['active', 'inactive']], [11 => 4, 12 => 2, 13 => 2]);
+        return $this->workbook->write($rows, array_values(self::Columns), 'Productos', $instructions, range(1, 20), [0, 10, 11, 12, 13, 15, 16, 17, 18, 19], [9 => ['unidad'], 14 => ['fixed', 'multiplier', 'both'], 17 => ['0', '1'], 18 => ['0', '1'], 19 => ['0', '1'], 20 => ['active', 'inactive']], [11 => 4, 12 => 2, 13 => 2]);
     }
 
     /** @return array{changes: list<array<string, mixed>>, unchanged: int, skipped: int, total: int, errors: list<string>, warnings: list<string>} */
@@ -281,6 +280,11 @@ class ProductSpreadsheetService
             'decimal' => ':attribute tiene demasiados decimales.', 'boolean' => ':attribute debe ser 1 o 0.',
         ], self::Columns);
         $validator->validate();
+        foreach (['minimum_stock', 'maximum_stock'] as $field) {
+            if ($values[$field] !== '' && $values[$field] !== null && (float) $values[$field] !== floor((float) $values[$field])) {
+                $this->invalid('Mínimo y Máximo deben ser cantidades enteras de unidades.');
+            }
+        }
         $category = ProductCategory::query()->where('name', $values['category'])->firstOrFail();
         $brand = $values['brand'] !== '' ? ProductBrand::query()->where('name', $values['brand'])->first() : null;
         $supplier = $values['supplier'] !== '' ? Supplier::query()->where('name', $values['supplier'])->first() : null;
@@ -296,11 +300,15 @@ class ProductSpreadsheetService
         if ($values['is_color_bar_usable'] && in_array($values['color_bar_pricing_type'], ['multiplier', 'both'], true) && $category->color_bar_multiplier === null) {
             $this->invalid('Categoría requiere un multiplicador para el cobro de Color Bar.');
         }
-        if ($values['color_bar_pricing_type'] !== 'both' && $values['is_color_bar_usable'] && ! $values['is_color_bar_supply'] && $values['base_unit'] !== ($values['color_bar_pricing_type'] === 'multiplier' ? 'g' : 'unidad')) {
-            $this->invalid('Unidad debe ser g para fórmulas con multiplicador o unidad para cobro fijo sin insumo.');
+        $keepsLegacyPresentation = $variant !== null
+            && $values['base_unit'] === $variant->base_unit
+            && (float) $values['content_quantity'] === (float) $variant->content_quantity;
+        if (! $keepsLegacyPresentation && ($values['base_unit'] !== 'unidad' || (float) $values['content_quantity'] !== 1.0)) {
+            $this->invalid('El inventario se registra en unidad y Contenido 1. Los gramos se capturan únicamente en las fórmulas. Se conservan las presentaciones con existencias o movimientos.');
         }
-        if ($variant && ($values['base_unit'] !== $variant->base_unit || (float) $values['content_quantity'] !== (float) $variant->content_quantity) && ($variant->balances()->where('available_quantity', '!=', 0)->exists() || InventoryMovement::query()->where('product_variant_id', $variant->id)->exists())) {
-            $this->invalid('Unidad o Contenido no se pueden cambiar en una presentación con existencias o movimientos. Crea otra presentación.');
+        if ($variant !== null) {
+            $values['base_unit'] = $variant->base_unit;
+            $values['content_quantity'] = $variant->content_quantity;
         }
 
         return [
@@ -339,7 +347,7 @@ class ProductSpreadsheetService
             'id' => $variant->id, 'product_sku' => $product->sku ?? '', 'variant_sku' => $variant->sku ?? '',
             'name' => $product->name, 'variant_name' => $variant->name, 'category' => $product->category?->name ?? '',
             'brand' => $product->brand ?? '', 'supplier' => $product->preferredSupplier?->name ?? '', 'description' => $product->description ?? '',
-            'base_unit' => $variant->base_unit, 'content_quantity' => $variant->content_quantity, 'cost' => $variant->cost,
+            'base_unit' => 'unidad', 'content_quantity' => '1', 'cost' => $variant->cost,
             'sale_price' => $variant->sale_price, 'color_bar_sale_price' => $variant->color_bar_sale_price,
             'color_bar_pricing_type' => $variant->color_bar_pricing_type, 'minimum_stock' => $variant->minimum_stock, 'maximum_stock' => $variant->maximum_stock ?? '',
             'is_reception_usable' => (string) (int) $product->is_reception_usable, 'is_color_bar_usable' => (string) (int) $product->is_color_bar_usable,

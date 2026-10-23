@@ -13,8 +13,7 @@
             <div class="supply-depletion-list">
                 @forelse($balances as $balance)
                     @php
-                        $content = (float) $balance->variant->content_quantity;
-                        $packages = $content > 0 ? (float) $balance->available_quantity / $content : 0;
+                        $packages = (float) $balance->available_quantity;
                     @endphp
                     <article class="supply-depletion-row" data-supply-row data-id="{{ $balance->id }}" data-name="{{ $balance->variant->product->name }} · {{ $balance->variant->name }}" data-search="{{ $balance->variant->product->name }} {{ $balance->variant->product->brand }} {{ $balance->variant->product->preferredSupplier?->name }} {{ $balance->variant->name }} {{ $balance->variant->sku }}" data-packages="{{ $packages }}" data-expected="{{ $balance->available_quantity }}">
                         <div class="supply-depletion-info">
@@ -73,7 +72,7 @@
                     <ul>@foreach($batch->inventoryRequest->items as $item)<li>{{ $item->variant->product->name }} · Solicitados: {{ $item->requested_units }} envases</li>@endforeach</ul>
                 @endif
                 @if($batch->notes)<p>{{ $batch->notes }}</p>@endif
-                <ul>@foreach($batch->movements as $movement)<li><strong>{{ $movement->variant->product->name }}</strong> · Baja: {{ rtrim(rtrim(number_format(abs((float) $movement->quantity), 3), '0'), '.') }} {{ $movement->variant->base_unit }} · Existencia: {{ rtrim(rtrim(number_format((float) $movement->before_quantity, 3), '0'), '.') }} → {{ rtrim(rtrim(number_format((float) $movement->after_quantity, 3), '0'), '.') }} {{ $movement->variant->base_unit }}</li>@endforeach</ul>
+                <ul>@foreach($batch->movements as $movement)<li><strong>{{ $movement->variant->product->name }}</strong> · Baja: {{ rtrim(rtrim(number_format(abs((float) $movement->quantity), 3), '0'), '.') }} {{ $movement->unitLabel() }} · Existencia: {{ rtrim(rtrim(number_format((float) $movement->before_quantity, 3), '0'), '.') }} → {{ rtrim(rtrim(number_format((float) $movement->after_quantity, 3), '0'), '.') }} {{ $movement->unitLabel() }}</li>@endforeach</ul>
             </details>
         @empty
             <p>Aún no hay bajas por lote. Las bajas anteriores siguen disponibles en la bitácora.</p>

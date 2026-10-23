@@ -28,15 +28,15 @@ class ColorBarInventoryTest extends TestCase
         $beforeMovements = InventoryMovement::query()->count();
 
         $this->actingAs($user)->get(route('inventory.index', ['location' => 'CB']))
-            ->assertOk()->assertSee('Registrar envases agotados')->assertSee('1,000 g por envase');
+            ->assertOk()->assertSee('Registrar envases agotados')->assertSee('Cada envase cuenta como una unidad');
         $this->post(route('inventory.color-bar.deplete', $balance), ['units' => 1, 'notes' => 'Se terminó el bote abierto'])
             ->assertRedirect(route('inventory.index', ['location' => 'CB']))->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 1000]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 1]);
         $this->assertDatabaseHas('inventory_movements', [
             'inventory_location_id' => $balance->inventory_location_id,
             'product_variant_id' => $balance->product_variant_id,
-            'type' => 'color_bar_depletion', 'quantity' => -1000, 'before_quantity' => 2000, 'after_quantity' => 1000,
+            'type' => 'color_bar_depletion', 'quantity' => -1, 'before_quantity' => 2, 'after_quantity' => 1,
             'reference_type' => InventoryBalance::class, 'reference_id' => $balance->id, 'created_by' => $user->id,
             'reason' => '1 envase agotado en Color Bar. Se terminó el bote abierto',
         ]);
@@ -84,14 +84,14 @@ class ColorBarInventoryTest extends TestCase
     {
         $this->seed(CrepeSeeder::class);
         $balance = $this->packagedSupply();
-        $balance->update(['available_quantity' => 965]);
+        $balance->update(['available_quantity' => 1]);
         $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $beforeMovements = InventoryMovement::query()->count();
 
         $this->actingAs($user)->post(route('inventory.color-bar.deplete', $balance), ['empty_stock' => 1])->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 0]);
-        $this->assertDatabaseHas('inventory_movements', ['reference_type' => InventoryBalance::class, 'reference_id' => $balance->id, 'type' => 'color_bar_depletion', 'quantity' => -965, 'before_quantity' => 965, 'after_quantity' => 0, 'created_by' => $user->id]);
+        $this->assertDatabaseHas('inventory_movements', ['reference_type' => InventoryBalance::class, 'reference_id' => $balance->id, 'type' => 'color_bar_depletion', 'quantity' => -1, 'before_quantity' => 1, 'after_quantity' => 0, 'created_by' => $user->id]);
         $this->assertDatabaseCount('inventory_movements', $beforeMovements + 1);
     }
 
@@ -124,7 +124,7 @@ class ColorBarInventoryTest extends TestCase
 
         $this->actingAs($admin)->post(route('inventory.color-bar.deplete', $balance), ['units' => 1])->assertUnprocessable();
 
-        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 2000]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 2]);
         $this->assertDatabaseCount('inventory_movements', $beforeMovements);
     }
 
@@ -132,7 +132,8 @@ class ColorBarInventoryTest extends TestCase
     {
         $this->seed(CrepeSeeder::class);
         $balance = $this->packagedSupply();
-        $balance->variant->update(['base_unit' => 'ml']);
+        $balance->variant->update(['base_unit' => 'ml', 'color_bar_pricing_type' => 'multiplier']);
+        $balance->variant->product->category->update(['color_bar_multiplier' => 3.7]);
         $user = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $ticket = Ticket::query()->whereHas('customer', fn ($query) => $query->where('email', 'fernanda.ruiz@example.com'))->firstOrFail();
         $ticket->appointment->update(['starts_at' => now(), 'ends_at' => now()->addHours(2)]);
@@ -174,7 +175,7 @@ class ColorBarInventoryTest extends TestCase
         $balance = InventoryBalance::query()->with('variant.product')->whereHas('location', fn ($query) => $query->where('code', 'CB'))
             ->whereHas('variant', fn ($query) => $query->where('base_unit', 'g')->whereHas('product', fn ($products) => $products->where('is_color_bar_usable', true)))->firstOrFail();
         $balance->variant->update(['content_quantity' => 1000]);
-        $balance->update(['available_quantity' => 2000]);
+        $balance->update(['available_quantity' => 2]);
 
         return $balance;
     }

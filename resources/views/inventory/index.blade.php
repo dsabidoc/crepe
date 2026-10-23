@@ -19,25 +19,22 @@
     <div class="table-head"><span>PRODUCTO</span><span>MARCA</span><span>PROVEEDOR</span><span>UBICACIÓN</span><span>UNIDAD</span><span>EXISTENCIA</span><span>MÍN. / MÁX.</span></div>
     @forelse($balances as $balance)
         @php
-            $contentQuantity = (float) $balance->variant->content_quantity;
-            $isColorBar = $location === 'CB' && $contentQuantity > 0;
-            $packageCount = $isColorBar ? (float) $balance->available_quantity / $contentQuantity : null;
-            $wholePackages = $isColorBar ? max(0, (int) floor(round($packageCount, 6))) : 0;
+            $wholePackages = max(0, (int) floor((float) $balance->available_quantity));
         @endphp
         <div class="table-row">
             <div class="product-name-cell"><strong>{{ $balance->variant->product->name }}</strong>@if(! in_array(mb_strtolower(trim($balance->variant->name)), ['unidad', 'unidades'], true))<small>{{ $balance->variant->name }}</small>@endif</div>
             <x-product-reference :product="$balance->variant->product" field="brand" />
             <x-product-reference :product="$balance->variant->product" field="supplier" />
             <span data-label="Ubicación">{{ $balance->location->name }}</span>
-            <span data-label="Unidad">{{ $isColorBar ? 'Envase' : $balance->variant->base_unit }}</span>
+            <span data-label="Unidad">Unidades</span>
             <div data-label="Existencia" class="inventory-stock-cell">
-                <strong class="product-stock-quantity {{ (float) $balance->available_quantity <= (float) $balance->variant->minimum_stock ? 'inventory-low' : '' }}">{{ rtrim(rtrim(number_format($isColorBar ? $packageCount : (float) $balance->available_quantity, 3), '0'), '.') }}</strong>
-                @if($isColorBar)<small>{{ number_format($contentQuantity, $contentQuantity == floor($contentQuantity) ? 0 : 3) }} {{ $balance->variant->base_unit }} por envase</small>@endif
+                <strong class="product-stock-quantity {{ (float) $balance->available_quantity <= (float) $balance->variant->minimum_stock ? 'inventory-low' : '' }}">{{ rtrim(rtrim(number_format((float) $balance->available_quantity, 3), '0'), '.') }}</strong>
+
                 @if($canDepleteColorBar && $balance->variant->product->isColorBarSupply())
-                    <button class="text-button inventory-depletion-trigger" type="button" data-deplete-color-bar data-balance-id="{{ $balance->id }}" data-action="{{ route('inventory.color-bar.deplete', $balance) }}" data-name="{{ $balance->variant->product->name }} · {{ $balance->variant->name }}" data-content="{{ number_format($contentQuantity, $contentQuantity == floor($contentQuantity) ? 0 : 3) }} {{ $balance->variant->base_unit }} por envase" data-max="{{ $wholePackages }}" aria-haspopup="dialog" aria-controls="color-bar-depletion" @disabled((float) $balance->available_quantity <= 0)>Registrar envases agotados</button>
+                    <button class="text-button inventory-depletion-trigger" type="button" data-deplete-color-bar data-balance-id="{{ $balance->id }}" data-action="{{ route('inventory.color-bar.deplete', $balance) }}" data-name="{{ $balance->variant->product->name }} · {{ $balance->variant->name }}" data-content="Cada envase cuenta como una unidad" data-max="{{ $wholePackages }}" aria-haspopup="dialog" aria-controls="color-bar-depletion" @disabled((float) $balance->available_quantity <= 0)>Registrar envases agotados</button>
                 @endif
             </div>
-            <small data-label="Mín. / Máx.">{{ rtrim(rtrim(number_format((float) $balance->variant->minimum_stock / ($isColorBar ? $contentQuantity : 1), 3), '0'), '.') }} / {{ rtrim(rtrim(number_format((float) $balance->variant->maximum_stock / ($isColorBar ? $contentQuantity : 1), 3), '0'), '.') }}</small>
+            <small data-label="Mín. / Máx.">{{ rtrim(rtrim(number_format((float) $balance->variant->minimum_stock, 3), '0'), '.') }} / {{ rtrim(rtrim(number_format((float) $balance->variant->maximum_stock, 3), '0'), '.') }}</small>
         </div>
     @empty
         <p class="empty-state">No hay existencias registradas con estos filtros.</p>

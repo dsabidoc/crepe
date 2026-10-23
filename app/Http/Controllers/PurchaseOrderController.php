@@ -72,7 +72,7 @@ class PurchaseOrderController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate(['supplier_id' => ['required', Rule::exists('suppliers', 'id')->where('is_active', true)], 'notes' => ['nullable', 'string', 'max:1000'], 'items' => ['required', 'array', 'min:1'], 'items.*.product_variant_id' => ['required', 'distinct', Rule::exists('product_variants', 'id')], 'items.*.ordered_quantity' => ['required', 'numeric', 'min:.001']]);
+        $data = $request->validate(['supplier_id' => ['required', Rule::exists('suppliers', 'id')->where('is_active', true)], 'notes' => ['nullable', 'string', 'max:1000'], 'items' => ['required', 'array', 'min:1'], 'items.*.product_variant_id' => ['required', 'distinct', Rule::exists('product_variants', 'id')], 'items.*.ordered_quantity' => ['required', 'integer', 'min:1']]);
         $order = DB::transaction(function () use ($data): PurchaseOrder {
             $order = PurchaseOrder::query()->create(['code' => 'OC-TEMP-'.str()->uuid(), 'supplier_id' => $data['supplier_id'], 'notes' => $data['notes'] ?? null]);
             $order->update(['code' => 'ODC-'.str_pad((string) $order->id, 2, '0', STR_PAD_LEFT)]);
@@ -108,7 +108,7 @@ class PurchaseOrderController extends Controller
         $this->ensureDraft($purchaseOrder);
         $data = $request->validate([
             'product_variant_id' => ['required', Rule::exists('product_variants', 'id')],
-            'ordered_quantity' => ['required', 'numeric', 'min:.001'],
+            'ordered_quantity' => ['required', 'integer', 'min:1'],
         ]);
         $alreadyAdded = $purchaseOrder->items()
             ->where('product_variant_id', $data['product_variant_id'])
@@ -132,7 +132,7 @@ class PurchaseOrderController extends Controller
     {
         $this->ensureDraft($purchaseOrder);
         abort_unless($purchaseOrderItem->purchase_order_id === $purchaseOrder->id, 404);
-        $data = $request->validate(['ordered_quantity' => ['required', 'numeric', 'min:.001']]);
+        $data = $request->validate(['ordered_quantity' => ['required', 'integer', 'min:1']]);
         $purchaseOrderItem->update(['ordered_quantity' => $data['ordered_quantity']]);
 
         return back()->with('success', 'Cantidad de la orden actualizada.');
@@ -174,7 +174,7 @@ class PurchaseOrderController extends Controller
     public function receive(Request $request, PurchaseOrder $purchaseOrder, InventoryService $inventory): RedirectResponse
     {
         abort_unless($purchaseOrder->status === 'draft', 422, 'Esta orden ya fue recibida.');
-        $data = $request->validate(['invoice' => ['nullable', File::types(['jpg', 'jpeg', 'png', 'pdf'])->max('10mb')], 'invoice_reference' => ['nullable', 'string', 'max:120'], 'amount' => ['required', 'numeric', 'min:.01'], 'items' => ['required', 'array'], 'items.*' => ['required', 'numeric', 'min:0']]);
+        $data = $request->validate(['invoice' => ['nullable', File::types(['jpg', 'jpeg', 'png', 'pdf'])->max('10mb')], 'invoice_reference' => ['nullable', 'string', 'max:120'], 'amount' => ['required', 'numeric', 'min:.01'], 'items' => ['required', 'array'], 'items.*' => ['required', 'integer', 'min:0']]);
         DB::transaction(function () use ($data, $purchaseOrder, $inventory, $request): void {
             $order = PurchaseOrder::query()->with(['supplier', 'items.variant'])->lockForUpdate()->findOrFail($purchaseOrder->id);
             $warehouse = InventoryLocation::query()->where('code', 'ALM')->firstOrFail();

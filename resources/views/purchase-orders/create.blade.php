@@ -14,11 +14,11 @@
             <div class="purchase-order-lines" id="new-order-lines">
                 <div class="purchase-order-line">
                     <label><span>Producto</span><select name="items[0][product_variant_id]" required><option value="">Selecciona un producto</option>@foreach($variants as $variant)<option value="{{ $variant->id }}">{{ $variant->product->name }} · {{ $variant->name }}</option>@endforeach</select></label>
-                    <label><span>Cantidad</span><input name="items[0][ordered_quantity]" type="number" step=".001" min=".001" required placeholder="0"></label>
+                    <label><span>Cantidad</span><input name="items[0][ordered_quantity]" type="number" step="1" min="1" required placeholder="0"></label>
                     <button type="button" class="button button-secondary purchase-order-remove" aria-label="Quitar producto" disabled>×</button>
                 </div>
             </div>
-            <template id="purchase-order-line-template"><div class="purchase-order-line"><label><span>Producto</span><select name="items[__INDEX__][product_variant_id]" required><option value="">Selecciona un producto</option>@foreach($variants as $variant)<option value="{{ $variant->id }}">{{ $variant->product->name }} · {{ $variant->name }}</option>@endforeach</select></label><label><span>Cantidad</span><input name="items[__INDEX__][ordered_quantity]" type="number" step=".001" min=".001" required placeholder="0"></label><button type="button" class="button button-secondary purchase-order-remove" aria-label="Quitar producto">×</button></div></template>
+            <template id="purchase-order-line-template"><div class="purchase-order-line"><label><span>Producto</span><select name="items[__INDEX__][product_variant_id]" required><option value="">Selecciona un producto</option>@foreach($variants as $variant)<option value="{{ $variant->id }}">{{ $variant->product->name }} · {{ $variant->name }}</option>@endforeach</select></label><label><span>Cantidad</span><input name="items[__INDEX__][ordered_quantity]" type="number" step="1" min="1" required placeholder="0"></label><button type="button" class="button button-secondary purchase-order-remove" aria-label="Quitar producto">×</button></div></template>
             <div class="purchase-order-actions"><button class="button button-secondary" type="button" id="add-purchase-order-line">+ Agregar producto</button><button class="button button-primary" type="submit">Crear orden</button></div>
         </form>
     </section>

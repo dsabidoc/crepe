@@ -7,7 +7,8 @@
         'sale' => 'Venta',
         'transfer_in' => 'Entrada por traspaso',
         'transfer_out' => 'Salida por traspaso',
-        'color_consumption' => 'Consumo Color Bar',
+        'color_consumption' => 'Consumo de fórmula (histórico)',
+        'color_correction_reversal' => 'Corrección de fórmula (histórica)',
         'color_bar_depletion' => 'Envases agotados · Color Bar',
         'adjustment' => 'Ajuste',
     ];
@@ -54,7 +55,7 @@
                     <x-product-reference :product="$movement->variant?->product" field="brand" />
                     <x-product-reference :product="$movement->variant?->product" field="supplier" />
                     <span data-label="Ubicación">{{ $movement->location?->name ?: '—' }}</span>
-                    <strong data-label="Movimiento" class="{{ (float) $movement->quantity < 0 ? 'activity-out' : 'activity-in' }}">{{ (float) $movement->quantity > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format((float) $movement->quantity, 3), '0'), '.') }} {{ $movement->variant?->base_unit }}</strong>
+                    <strong data-label="Movimiento" class="{{ (float) $movement->quantity < 0 ? 'activity-out' : 'activity-in' }}">{{ (float) $movement->quantity > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format((float) $movement->quantity, 3), '0'), '.') }} {{ $movement->unitLabel() }}</strong>
                     <div data-label="Detalle"><span>{{ $movementLabels[$movement->type] ?? str($movement->type)->replace('_', ' ')->headline() }}</span><small>{{ $movement->reason ?: 'Sin motivo capturado' }}{{ $movement->creator ? ' · '.$movement->creator->name : '' }}</small></div>
                 </div>
             @empty

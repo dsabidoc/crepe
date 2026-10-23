@@ -27,7 +27,7 @@ class InventorySpreadsheetTest extends TestCase
         $archived->product->update(['status' => 'inactive']);
         for ($index = 0; $index < 31; $index++) {
             $variant = $balance->variant->product->variants()->create(['name' => 'Presentación '.$index, 'sku' => 'EXPORT-'.$index, 'base_unit' => 'pieza', 'content_quantity' => 1, 'minimum_stock' => 0]);
-            InventoryBalance::query()->create(['product_variant_id' => $variant->id, 'inventory_location_id' => $balance->inventory_location_id, 'available_quantity' => 12.125]);
+            InventoryBalance::query()->create(['product_variant_id' => $variant->id, 'inventory_location_id' => $balance->inventory_location_id, 'available_quantity' => 12]);
         }
 
         $response = $this->actingAs($user)->get(route('inventory.export', ['search' => 'sin coincidencias', 'page' => 2, 'location' => 'REC']));
@@ -56,23 +56,23 @@ class InventorySpreadsheetTest extends TestCase
         $otherLocation = InventoryBalance::query()->where('product_variant_id', $balance->product_variant_id)->where('inventory_location_id', '!=', $balance->inventory_location_id)->firstOrFail();
         $otherQuantity = $otherLocation->available_quantity;
         $movements = InventoryMovement::query()->count();
-        $upload = $this->editedFile([$balance->id => '12.125']);
+        $upload = $this->editedFile([$balance->id => '12']);
 
         $this->from(route('inventory.import.create'))->post(route('inventory.import.preview'), ['file' => $upload])
             ->assertRedirect(route('inventory.import.create'))->assertSessionHasNoErrors();
         $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 36]);
         $this->assertSame($movements, InventoryMovement::query()->count());
-        $this->get(route('inventory.import.create'))->assertSee('12.125')->assertSee('1 existencia por actualizar');
+        $this->get(route('inventory.import.create'))->assertSee('12')->assertSee('1 existencia por actualizar');
 
         $this->post(route('inventory.import.store'), ['token' => session('inventory_import.token'), 'reason' => 'Conteo físico'])
             ->assertRedirect(route('inventory.index', ['location' => 'ALM']))->assertSessionHasNoErrors()->assertSessionMissing('inventory_import');
 
-        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 12.125]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 12]);
         $this->assertDatabaseHas('inventory_balances', ['id' => $otherLocation->id, 'available_quantity' => $otherQuantity]);
-        $this->assertDatabaseHas('inventory_movements', ['product_variant_id' => $balance->product_variant_id, 'inventory_location_id' => $balance->inventory_location_id, 'type' => 'adjustment', 'quantity' => -23.875, 'before_quantity' => 36, 'after_quantity' => 12.125, 'created_by' => $user->id, 'reason' => 'Importación Excel: Conteo físico']);
+        $this->assertDatabaseHas('inventory_movements', ['product_variant_id' => $balance->product_variant_id, 'inventory_location_id' => $balance->inventory_location_id, 'type' => 'adjustment', 'quantity' => -24, 'before_quantity' => 36, 'after_quantity' => 12, 'created_by' => $user->id, 'reason' => 'Importación Excel: Conteo físico']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'inventory.imported', 'user_id' => $user->id, 'reason' => 'Conteo físico']);
         $this->assertSame($movements + 1, InventoryMovement::query()->count());
-        $this->get(route('inventory.index', ['location' => 'ALM']))->assertSee('12.125');
+        $this->get(route('inventory.index', ['location' => 'ALM']))->assertSee('12');
         $this->get(route('activity.index', ['location' => 'ALM']))->assertSee('Importación Excel')->assertSee('Conteo físico');
     }
 
@@ -94,6 +94,7 @@ class InventorySpreadsheetTest extends TestCase
     #[TestWith(['-1'])]
     #[TestWith([''])]
     #[TestWith(['texto'])]
+    #[TestWith(['1.5'])]
     #[TestWith(['1.2345'])]
     #[TestWith(['100000000000'])]
     public function test_invalid_quantities_reject_the_entire_file(string $quantity): void
@@ -103,7 +104,7 @@ class InventorySpreadsheetTest extends TestCase
         $movements = InventoryMovement::query()->count();
 
         $this->from(route('inventory.import.create'))->post(route('inventory.import.preview'), ['file' => $upload])
-            ->assertInvalid(['file' => 'Existencia nueva debe ser un número entre 0 y 99999999999.999']);
+            ->assertInvalid(['file' => 'Existencia nueva debe ser un número entero entre 0 y 99999999999 unidades']);
 
         $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 36]);
         $this->assertSame($movements, InventoryMovement::query()->count());

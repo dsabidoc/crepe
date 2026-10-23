@@ -8,8 +8,8 @@
         <header><div><p class="eyebrow">1 · PREPARAR EL ARCHIVO</p><h2>Una fila por existencia</h2><p>Descarga la ubicación que vas a contar. El archivo incluye todas sus existencias activas, sin filtros ni paginación.</p></div></header>
         <ol class="list-decimal space-y-2 pl-5 text-sm leading-6">
             <li>Edita únicamente <strong>Existencia nueva</strong>, la columna verde del Excel. Es la cantidad final, no una entrada de mercancía.</li>
-            <li>Usa la <strong>Unidad</strong> indicada en el archivo. En Color Bar captura gramos o mililitros según corresponda; no el número de envases.</li>
-            <li>Usa hasta 3 decimales; escribe <strong>0</strong> para dejar la existencia en cero. Conserva los encabezados, ID, Existencia original y Control.</li>
+            <li>Cuenta <strong>unidades o envases completos</strong> en Almacén, Recepción e insumos de Color Bar. Los gramos se registran únicamente en las fórmulas.</li>
+            <li>Usa cantidades enteras; escribe <strong>0</strong> para dejar la existencia en cero. Conserva los encabezados, ID, Existencia original y Control.</li>
             <li>Puedes quitar las filas que no quieras actualizar. Las filas ausentes no cambian ni se eliminan. Para agregar productos usa Productos.</li>
             <li>Guarda como <strong>.xlsx</strong> o <strong>CSV UTF-8</strong>. Revisa los cambios y confirma con un motivo.</li>
         </ol>
