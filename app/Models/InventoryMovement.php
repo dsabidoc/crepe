@@ -14,13 +14,6 @@ class InventoryMovement extends Model
         return ['quantity' => 'decimal:3', 'before_quantity' => 'decimal:3', 'after_quantity' => 'decimal:3', 'unit_cost' => 'decimal:4'];
     }
 
-    public function unitLabel(): string
-    {
-        return in_array($this->type, ['color_consumption', 'color_correction_reversal'], true)
-            ? ($this->variant?->base_unit ?? 'g')
-            : 'unidades';
-    }
-
     public function variant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class, 'product_variant_id');

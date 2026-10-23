@@ -30,7 +30,7 @@
             @foreach($inventoryRequest->items as $item)
                 @php
                     $stock = (float) $item->variant->balances->first()?->available_quantity;
-                    $requestedUnits = $item->requestedInventoryUnits();
+                    $requestedUnits = (float) ($item->requested_units ?? $item->requested_quantity);
                     $availableUnits = (int) floor($stock);
                     $max = min($requestedUnits, $availableUnits);
                 @endphp

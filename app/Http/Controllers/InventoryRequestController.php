@@ -139,7 +139,7 @@ class InventoryRequestController extends Controller
             abort_unless($lockedRequest->status === 'pending', 422, 'Esta solicitud ya fue cerrada.');
             $warehouse = InventoryLocation::query()->where('code', 'ALM')->firstOrFail();
             foreach ($lockedRequest->items as $item) {
-                $requested = $item->requestedInventoryUnits();
+                $requested = (float) ($item->requested_units ?? $item->requested_quantity);
                 $entered = (int) ($data['items'][$item->id] ?? 0);
                 if ($entered > $requested) {
                     throw ValidationException::withMessages(["items.{$item->id}" => 'No puedes entregar más de lo solicitado.']);

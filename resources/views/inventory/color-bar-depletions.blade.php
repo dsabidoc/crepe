@@ -72,7 +72,7 @@
                     <ul>@foreach($batch->inventoryRequest->items as $item)<li>{{ $item->variant->product->name }} · Solicitados: {{ $item->requested_units }} envases</li>@endforeach</ul>
                 @endif
                 @if($batch->notes)<p>{{ $batch->notes }}</p>@endif
-                <ul>@foreach($batch->movements as $movement)<li><strong>{{ $movement->variant->product->name }}</strong> · Baja: {{ rtrim(rtrim(number_format(abs((float) $movement->quantity), 3), '0'), '.') }} {{ $movement->unitLabel() }} · Existencia: {{ rtrim(rtrim(number_format((float) $movement->before_quantity, 3), '0'), '.') }} → {{ rtrim(rtrim(number_format((float) $movement->after_quantity, 3), '0'), '.') }} {{ $movement->unitLabel() }}</li>@endforeach</ul>
+                <ul>@foreach($batch->movements as $movement)<li><strong>{{ $movement->variant->product->name }}</strong> · Baja: {{ rtrim(rtrim(number_format(abs((float) $movement->quantity), 3), '0'), '.') }} unidades · Existencia: {{ rtrim(rtrim(number_format((float) $movement->before_quantity, 3), '0'), '.') }} → {{ rtrim(rtrim(number_format((float) $movement->after_quantity, 3), '0'), '.') }} unidades</li>@endforeach</ul>
             </details>
         @empty
             <p>Aún no hay bajas por lote. Las bajas anteriores siguen disponibles en la bitácora.</p>

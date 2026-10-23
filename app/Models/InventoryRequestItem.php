@@ -14,16 +14,6 @@ class InventoryRequestItem extends Model
         return ['requested_quantity' => 'decimal:3', 'requested_units' => 'integer', 'delivered_quantity' => 'decimal:3', 'delivered_units' => 'integer'];
     }
 
-    public function requestedInventoryUnits(): float
-    {
-        return (float) ($this->requested_units ?? $this->requested_quantity);
-    }
-
-    public function deliveredInventoryUnits(): float
-    {
-        return (float) ($this->delivered_units ?? $this->delivered_quantity);
-    }
-
     public function request(): BelongsTo
     {
         return $this->belongsTo(InventoryRequest::class, 'inventory_request_id');

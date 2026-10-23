@@ -5,8 +5,8 @@
         @if($inventoryRequest->processed_at)<p>{{ $inventoryRequest->processor?->name }} · {{ $inventoryRequest->processed_at->format('d/m/Y H:i') }}</p>@endif
         <div class="notification-delivery-list">
             @foreach($inventoryRequest->items as $item)
-                @php($requested = $item->requestedInventoryUnits())
-                @php($delivered = $item->deliveredInventoryUnits())
+                @php($requested = (float) ($item->requested_units ?? $item->requested_quantity))
+                @php($delivered = (float) ($item->delivered_units ?? $item->delivered_quantity))
                 <article class="notification-delivery-row {{ $inventoryRequest->status === 'closed' && $delivered < $requested ? 'is-partial' : '' }}"><div><strong>{{ $item->variant->product->name }}</strong><small>{{ $item->variant->name }}</small></div><span>{{ $inventoryRequest->status === 'closed' ? 'Entregado: '.$delivered.' de ' : 'Solicitado: ' }}{{ $requested }} unidades</span></article>
             @endforeach
         </div>
