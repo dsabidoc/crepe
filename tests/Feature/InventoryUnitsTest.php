@@ -105,8 +105,8 @@ class InventoryUnitsTest extends TestCase
         $row = collect($rows)->first(fn (array $row): bool => ($row[1] ?? null) === $variant->sku);
 
         $this->assertSame('unidad', $row[7]);
-        $this->assertSame('8.000', $row[8]);
-        $this->assertSame('8.000', $row[9]);
+        $this->assertSame('8', $row[8]);
+        $this->assertSame('8', $row[9]);
     }
 
     public function test_product_updates_preserve_legacy_metadata_and_keep_formula_pricing_independent(): void

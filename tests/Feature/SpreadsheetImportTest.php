@@ -33,7 +33,7 @@ class SpreadsheetImportTest extends TestCase
         $this->post(route('inventory.import.preview'), ['file' => $file, 'location_code' => $location])->assertSessionHasNoErrors();
         $import = SpreadsheetImport::sole();
         $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => $original]);
-        $this->get(route('inventory.import.create'))->assertSee('1 existencia por actualizar')->assertSee($quantity);
+        $this->get(route('inventory.import.create'))->assertSee('1 registro por actualizar')->assertSee($quantity);
         $this->post(route('inventory.import.store'), ['token' => $import->token, 'reason' => 'Conteo parcial'])
             ->assertRedirect(route('inventory.index', ['location' => $location]))->assertSessionHasNoErrors();
 

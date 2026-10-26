@@ -21,7 +21,7 @@ class InventorySpreadsheetController extends Controller
         $format = $data['format'] ?? 'xlsx';
         $location = $data['location_code'] ?? 'ALM';
 
-        return $files->download($spreadsheets->export($format, $location), 'inventario-'.['ALM' => 'almacen', 'REC' => 'recepcion', 'CB' => 'color-bar'][$location].'-'.now()->format('Y-m-d-His'), $format);
+        return $files->download($spreadsheets->export($format, $location, $request->user()->can('products.costs.view')), 'inventario-'.['ALM' => 'almacen', 'REC' => 'recepcion', 'CB' => 'color-bar'][$location].'-'.now()->format('Y-m-d-His'), $format);
     }
 
     public function create(Request $request): View
@@ -48,7 +48,7 @@ class InventorySpreadsheetController extends Controller
         ]);
         $file = $request->file('file');
         $locationCode = $data['location_code'] ?? 'ALM';
-        $import = $imports->review('inventory', $file, $request->user()->id, 'count', $locationCode, fn (): array => $spreadsheets->preview($file->getPathname(), strtolower($file->getClientOriginalExtension()), $locationCode));
+        $import = $imports->review('inventory', $file, $request->user()->id, 'count', $locationCode, fn (): array => $spreadsheets->preview($file->getPathname(), strtolower($file->getClientOriginalExtension()), $locationCode, $request->user()->can('products.costs.view'), $request->user()->can('products.prices.manage'), $request->user()->can('products.manage')));
         $request->session()->put('inventory_import', $import->preview + [
             'user_id' => $request->user()->id, 'token' => $import->token, 'location_code' => $locationCode,
         ]);
@@ -68,9 +68,9 @@ class InventorySpreadsheetController extends Controller
         if (($preview['user_id'] ?? null) !== $request->user()->id || ! hash_equals($preview['token'] ?? '', $data['token']) || empty($preview['changes'])) {
             throw ValidationException::withMessages(['file' => 'La revisión ya no está disponible. Sube el Excel y revisa los cambios nuevamente.']);
         }
-        $count = $imports->apply($data['token'], $request->user()->id, 'inventory', $data['reason'], fn (SpreadsheetImport $import): int => $spreadsheets->apply($import->preview['changes'], $request->user()->id, $data['reason'], $import->location_code, $import->format));
+        $count = $imports->apply($data['token'], $request->user()->id, 'inventory', $data['reason'], fn (SpreadsheetImport $import): int => $spreadsheets->apply($import->preview['changes'], $request->user()->id, $data['reason'], $import->location_code, $import->format, $request->user()->can('products.costs.view'), $request->user()->can('products.prices.manage'), $request->user()->can('products.manage')));
         $request->session()->forget('inventory_import');
 
-        return redirect()->route('inventory.index', ['location' => $preview['location_code']])->with('success', "Se actualizaron {$count} existencias. Los ajustes quedaron registrados en la bitácora y en el historial de importaciones.");
+        return redirect()->route('inventory.index', ['location' => $preview['location_code']])->with('success', "Se actualizaron {$count} registros de inventario o catálogo. Los ajustes quedaron registrados en la bitácora y en el historial de importaciones.");
     }
 }

@@ -10,7 +10,7 @@
     <header>
         <div>
             <p class="eyebrow">{{ $import->status === 'applied' ? 'RESULTADO APLICADO' : 'REVISIÓN · TODAVÍA SIN APLICAR' }}</p>
-            <h2>{{ $import->module === 'products' ? 'Altas y actualizaciones de catálogo' : $updated.' '.($updated === 1 ? 'existencia por actualizar' : 'existencias por actualizar') }}</h2>
+            <h2>{{ $import->module === 'products' ? 'Altas y actualizaciones de catálogo' : $updated.' '.($updated === 1 ? 'registro por actualizar' : 'registros por actualizar') }}</h2>
             <p>{{ $preview['total'] ?? 0 }} filas revisadas · {{ $added }} productos nuevos · {{ $variants }} presentaciones nuevas · {{ $updated }} actualizaciones · {{ $preview['unchanged'] ?? 0 }} sin cambios · {{ $preview['skipped'] ?? 0 }} omitidas.</p>
         </div>
         @can('imports.view')<a class="button button-secondary" href="{{ route('imports.result', $import) }}">Descargar resultado CSV</a>@endcan
@@ -22,7 +22,7 @@
         <details><summary>{{ count($preview['warnings']) }} avisos y filas omitidas</summary><ul class="list-disc space-y-2 pl-5">@foreach($preview['warnings'] as $warning)<li>{{ $warning }}</li>@endforeach</ul></details>
     @endif
     @if($changes->isEmpty() && empty($preview['errors']))
-        <p>{{ $import->module === 'inventory' ? 'El archivo no contiene cambios de existencias.' : 'El archivo no contiene altas ni actualizaciones.' }}</p>
+        <p>{{ $import->module === 'inventory' ? 'El archivo no contiene cambios de existencias, precios ni límites.' : 'El archivo no contiene altas ni actualizaciones.' }}</p>
     @endif
     @foreach($changes->take(100) as $change)
         <details class="break-words border-b border-gray-200 py-3" @if($changes->count() <= 5) open @endif>
