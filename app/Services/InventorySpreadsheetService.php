@@ -106,6 +106,7 @@ class InventorySpreadsheetService
                 continue;
             }
             $seen[$balance->id] = true;
+            $rowContext = "Fila {$number} · {$balance->variant->product->name} · ".($balance->variant->sku ?? 'Sin SKU');
             $original = $row['I'] ?? '';
             $control = explode(':', $row['M'] ?? '');
             $payload = ! $legacy && count($control) === 3 && $control[0] === 'v3' ? $control[1] : null;
@@ -116,7 +117,7 @@ class InventorySpreadsheetService
             }
             $target = $row['J'] ?? '';
             if (! preg_match('/^[0-9]{1,11}(?:\\.0{1,3})?$/D', $target)) {
-                $errors[] = "Fila {$number}: Existencia nueva debe ser un número entero entre 0 y 99999999999 unidades.";
+                $errors[] = $rowContext.": Existencia nueva debe ser un número entero entre 0 y 99999999999 unidades. Columna J, valor «{$target}».";
 
                 continue;
             }
@@ -129,9 +130,16 @@ class InventorySpreadsheetService
                     $fields = $this->catalogChanges($row, $snapshot, $balance->variant, $costs, $prices, $catalog);
                 }
             } catch (ValidationException $exception) {
-                $errors[] = "Fila {$number}: ".implode(' ', $exception->validator->errors()->all());
+                $errors[] = $rowContext.': '.implode(' ', $exception->validator->errors()->all());
 
                 continue;
+            }
+            if ($before !== $after && $this->decimal($balance->available_quantity) === $after) {
+                $before = $after;
+            }
+            $values = $this->catalogValues($balance->variant);
+            if (! isset($fields['minimum_stock']) && ! isset($fields['maximum_stock']) && $this->hasInconsistentLimits($values)) {
+                $warnings[] = $rowContext.': Mínimo (K): '.$this->whole($values['minimum_stock']).'; Máximo (L): '.$this->whole($values['maximum_stock']).'. Son límites existentes que no modificaste. Se conservan y no bloquean los demás ajustes.';
             }
             if ($before === $after && $fields === []) {
                 $unchanged++;
@@ -139,7 +147,7 @@ class InventorySpreadsheetService
                 continue;
             }
             if ($before !== $after && $this->decimal($balance->available_quantity) !== $before) {
-                $errors[] = "Fila {$number}: la existencia cambió desde la descarga. Descarga un Excel nuevo y actualiza el conteo.";
+                $errors[] = $rowContext.': la existencia cambió desde la descarga. Descarga un Excel nuevo y actualiza el conteo. Original (I): '.$this->whole($before).'; actual: '.$this->whole($balance->available_quantity).'; conteo del archivo (J): '.$this->whole($after).'.';
 
                 continue;
             }
@@ -186,7 +194,9 @@ class InventorySpreadsheetService
                     }
                     $values[$field] = $diff['after'];
                 }
-                $this->validateLimits($values);
+                if (isset($change['fields']['minimum_stock']) || isset($change['fields']['maximum_stock'])) {
+                    $this->validateLimits($values);
+                }
             }
             $warehouse = InventoryLocation::query()->where('code', $locationCode)->firstOrFail();
             $audit = AuditLog::create([
@@ -243,11 +253,12 @@ class InventorySpreadsheetService
             if ($field === 'maximum_stock' && $input === '[BORRAR]') {
                 $after = null;
             } else {
+                $number = $isStock ? $input : $this->normalizeMoneyInput($input);
                 $pattern = $isStock ? '/^[0-9]{1,9}(?:\.0{1,3})?$/D' : ($field === 'cost' ? '/^[0-9]{1,8}(?:\.[0-9]{1,2})?$/D' : '/^[0-9]{1,10}(?:\.[0-9]{1,2})?$/D');
-                if (! preg_match($pattern, $input)) {
-                    throw ValidationException::withMessages(['file' => $definition['label'].($isStock ? ' debe ser un número entero entre 0 y 999999999 unidades.' : ' debe ser un importe positivo o cero, con hasta 2 decimales.')]);
+                if (! preg_match($pattern, $number)) {
+                    throw ValidationException::withMessages(['file' => $definition['label'].($isStock ? ' debe ser un número entero entre 0 y 999999999 unidades.' : ' debe ser un importe positivo o cero, con hasta 2 decimales.')." Columna {$definition['column']}, valor «{$input}»."]);
                 }
-                $after = number_format((float) $input, $isStock ? 3 : ($field === 'cost' ? 4 : 2), '.', '');
+                $after = number_format((float) $number, $isStock ? 3 : ($field === 'cost' ? 4 : 2), '.', '');
             }
             if (! array_key_exists($field, $snapshot)) {
                 throw ValidationException::withMessages(['file' => 'El archivo no incluye autorización para modificar costos. Descarga uno nuevo con los permisos correspondientes.']);
@@ -263,7 +274,9 @@ class InventorySpreadsheetService
             $changes[$field] = compact('before', 'after');
             $values[$field] = $after;
         }
-        $this->validateLimits($values);
+        if (isset($changes['minimum_stock']) || isset($changes['maximum_stock'])) {
+            $this->validateLimits($values);
+        }
 
         return $changes;
     }
@@ -283,9 +296,28 @@ class InventorySpreadsheetService
     /** @param array<string, ?string> $values */
     private function validateLimits(array $values): void
     {
-        if ($values['maximum_stock'] !== null && (float) $values['maximum_stock'] < (float) $values['minimum_stock']) {
-            throw ValidationException::withMessages(['file' => 'Máximo debe ser mayor o igual al mínimo. No se aplicó ningún ajuste.']);
+        if ($this->hasInconsistentLimits($values)) {
+            throw ValidationException::withMessages(['file' => 'Máximo debe ser mayor o igual al mínimo. No se aplicó ningún ajuste. Mínimo (K): '.$this->whole($values['minimum_stock']).'; Máximo (L): '.$this->whole($values['maximum_stock']).'.']);
         }
+    }
+
+    /** @param array<string, ?string> $values */
+    private function hasInconsistentLimits(array $values): bool
+    {
+        return $values['maximum_stock'] !== null && (float) $values['maximum_stock'] < (float) $values['minimum_stock'];
+    }
+
+    /** Normalizes only differences within four floating-point rounding units of a two-decimal amount. */
+    private function normalizeMoneyInput(string $input): string
+    {
+        if (! preg_match('/^[0-9]{1,10}\.[0-9]{3,17}$/D', $input)) {
+            return $input;
+        }
+        $number = (float) $input;
+        $rounded = round($number, 2);
+        $tolerance = max(abs($number), 1) * PHP_FLOAT_EPSILON * 4;
+
+        return abs($number - $rounded) <= $tolerance ? $this->money($rounded) : $input;
     }
 
     private function whole(string $value): string
@@ -293,7 +325,7 @@ class InventorySpreadsheetService
         return number_format((float) $value, 0, '.', '');
     }
 
-    private function money(string $value): string
+    private function money(string|float $value): string
     {
         return number_format((float) $value, 2, '.', '');
     }

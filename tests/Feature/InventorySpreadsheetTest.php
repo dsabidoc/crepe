@@ -137,6 +137,7 @@ class InventorySpreadsheetTest extends TestCase
 
         $this->from(route('inventory.import.create'))->post(route('inventory.import.preview'), ['file' => $upload])
             ->assertInvalid(['file' => 'la existencia cambió desde la descarga.']);
+        $this->assertStringContainsString('Original (I): 36; actual: 35; conteo del archivo (J): 20.', session('errors')->first('file'));
 
         $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 35]);
         $this->assertDatabaseMissing('audit_logs', ['action' => 'inventory.imported']);
@@ -485,6 +486,146 @@ class InventorySpreadsheetTest extends TestCase
 
         $this->assertSame($original, $variant->fresh()->getAttributes());
         $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 12]);
+    }
+
+    #[TestWith(['39.549999999999997', '39.5500'])]
+    #[TestWith(['574.20000000000005', '574.2000'])]
+    #[TestWith(['269.45999999999998', '269.4600'])]
+    #[TestWith(['309.72000000000003', '309.7200'])]
+    public function test_excel_numeric_artifacts_do_not_change_an_unchanged_cost(string $excelCost, string $savedCost): void
+    {
+        [, $balance] = $this->warehouse();
+        $balance->variant->update(['cost' => $savedCost]);
+        $file = $this->catalogFile($balance->id, ['J' => '12', 'N' => $excelCost]);
+
+        $this->post(route('inventory.import.preview'), ['file' => $file])->assertSessionHasNoErrors();
+
+        $this->assertSame([], session('inventory_import.changes.0.fields'));
+        $this->assertDatabaseHas('product_variants', ['id' => $balance->product_variant_id, 'cost' => $savedCost]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 36]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'inventory.imported']);
+    }
+
+    #[TestWith(['N', '309.72000000000003', 'cost', '309.7200'])]
+    #[TestWith(['O', '39.549999999999997', 'sale_price', '39.55'])]
+    #[TestWith(['P', '574.20000000000005', 'color_bar_sale_price', '574.20'])]
+    public function test_changed_money_values_with_excel_artifacts_are_reviewed_as_two_decimal_amounts(string $column, string $input, string $field, string $expected): void
+    {
+        [, $balance] = $this->warehouse();
+        $file = $this->catalogFile($balance->id, [$column => $input]);
+
+        $this->post(route('inventory.import.preview'), ['file' => $file])->assertSessionHasNoErrors();
+
+        $this->assertSame($expected, session('inventory_import.changes.0.fields.'.$field.'.after'));
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 36]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'inventory.imported']);
+    }
+
+    #[TestWith(['12.345'])]
+    #[TestWith(['12.340000000001'])]
+    #[TestWith(['0.000000001'])]
+    public function test_real_extra_money_decimals_are_rejected_with_product_column_and_value(string $input): void
+    {
+        [, $balance] = $this->warehouse();
+        $file = $this->catalogFile($balance->id, ['N' => $input]);
+
+        $this->from(route('inventory.import.create'))->post(route('inventory.import.preview'), ['file' => $file])
+            ->assertInvalid(['file' => 'Costo debe ser un importe positivo o cero, con hasta 2 decimales. Columna N, valor «'.$input.'».']);
+
+        $this->assertStringContainsString($balance->variant->product->name, session('errors')->first('file'));
+        $this->assertStringContainsString($balance->variant->sku, session('errors')->first('file'));
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 36]);
+    }
+
+    #[TestWith([['J' => '12'], '12.000'])]
+    #[TestWith([['O' => '125.50', 'K' => '', 'L' => ''], '36.000'])]
+    public function test_unchanged_inconsistent_limits_warn_without_blocking_other_adjustments(array $fields, string $quantity): void
+    {
+        [, $balance] = $this->warehouse();
+        $balance->variant->update(['minimum_stock' => 12, 'maximum_stock' => 0]);
+        $file = $this->catalogFile($balance->id, $fields);
+        $this->post(route('inventory.import.preview'), ['file' => $file])->assertSessionHasNoErrors();
+        $this->get(route('inventory.import.create'))->assertSee('Son límites existentes que no modificaste. Se conservan y no bloquean los demás ajustes.');
+
+        $this->post(route('inventory.import.store'), ['token' => session('inventory_import.token'), 'reason' => 'Ajuste sin modificar límites'])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('product_variants', ['id' => $balance->product_variant_id, 'minimum_stock' => 12, 'maximum_stock' => 0]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => $quantity]);
+        $audit = AuditLog::query()->where('action', 'inventory.imported')->sole();
+        $this->assertArrayNotHasKey('minimum_stock', $audit->after['items'][0]['catalog']);
+        $this->assertArrayNotHasKey('maximum_stock', $audit->after['items'][0]['catalog']);
+    }
+
+    public function test_inconsistent_limits_are_reported_even_when_the_row_has_no_changes(): void
+    {
+        [, $balance] = $this->warehouse();
+        $balance->variant->update(['minimum_stock' => 12, 'maximum_stock' => 0]);
+
+        $this->post(route('inventory.import.preview'), ['file' => $this->catalogFile($balance->id, [])])->assertSessionHasNoErrors();
+
+        $this->assertSame([], session('inventory_import.changes'));
+        $this->assertStringContainsString('Mínimo (K): 12; Máximo (L): 0', session('inventory_import.warnings.0'));
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'inventory.imported']);
+    }
+
+    public function test_changing_an_existing_inconsistent_limit_still_requires_a_valid_pair(): void
+    {
+        [, $balance] = $this->warehouse();
+        $balance->variant->update(['minimum_stock' => 12, 'maximum_stock' => 0]);
+        $file = $this->catalogFile($balance->id, ['J' => '12', 'L' => '5']);
+
+        $this->from(route('inventory.import.create'))->post(route('inventory.import.preview'), ['file' => $file])->assertInvalid(['file' => 'Mínimo (K): 12; Máximo (L): 5']);
+
+        $this->assertDatabaseHas('product_variants', ['id' => $balance->product_variant_id, 'minimum_stock' => 12, 'maximum_stock' => 0]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 36]);
+    }
+
+    public function test_concurrent_limit_changes_are_revalidated_before_applying_a_new_minimum(): void
+    {
+        [, $balance] = $this->warehouse();
+        $balance->variant->update(['minimum_stock' => 1, 'maximum_stock' => 5]);
+        $file = $this->catalogFile($balance->id, ['J' => '12', 'K' => '4']);
+        $this->post(route('inventory.import.preview'), ['file' => $file])->assertSessionHasNoErrors();
+        $balance->variant->update(['maximum_stock' => 2]);
+
+        $this->from(route('inventory.import.create'))->post(route('inventory.import.store'), ['token' => session('inventory_import.token'), 'reason' => 'Modificar mínimo'])->assertInvalid(['file' => 'Máximo debe ser mayor o igual al mínimo']);
+
+        $this->assertDatabaseHas('product_variants', ['id' => $balance->product_variant_id, 'minimum_stock' => 1, 'maximum_stock' => 2]);
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 36]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'inventory.imported']);
+    }
+
+    public function test_counts_that_already_match_the_requested_quantity_are_skipped_without_movements(): void
+    {
+        [, $balance] = $this->warehouse();
+        $file = $this->catalogFile($balance->id, ['J' => '12']);
+        $balance->update(['available_quantity' => 12]);
+        $movements = InventoryMovement::query()->count();
+
+        $this->post(route('inventory.import.preview'), ['file' => $file])->assertSessionHasNoErrors();
+
+        $this->assertSame([], session('inventory_import.changes'));
+        $this->assertSame(session('inventory_import.total'), session('inventory_import.unchanged'));
+        $this->assertSame($movements, InventoryMovement::query()->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'inventory.imported']);
+    }
+
+    public function test_price_changes_preserve_stock_when_the_file_count_already_matches_the_current_quantity(): void
+    {
+        [, $balance] = $this->warehouse();
+        $file = $this->catalogFile($balance->id, ['J' => '12', 'O' => '125.50']);
+        $balance->update(['available_quantity' => 12]);
+        $movements = InventoryMovement::query()->count();
+        $this->post(route('inventory.import.preview'), ['file' => $file])->assertSessionHasNoErrors();
+        $this->assertSame('12.000', session('inventory_import.changes.0.before'));
+        $this->assertSame(['sale_price'], array_column(session('inventory_import.changes.0.diff'), 'field'));
+        $balance->update(['available_quantity' => 11]);
+
+        $this->post(route('inventory.import.store'), ['token' => session('inventory_import.token'), 'reason' => 'Actualizar precio'])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('inventory_balances', ['id' => $balance->id, 'available_quantity' => 11]);
+        $this->assertDatabaseHas('product_variants', ['id' => $balance->product_variant_id, 'sale_price' => 125.50]);
+        $this->assertSame($movements, InventoryMovement::query()->count());
     }
 
     /** @param array<string, string> $fields */
