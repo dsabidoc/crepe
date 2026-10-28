@@ -53,7 +53,12 @@
             @php($lastReference = null)
             @forelse($movements as $movement)
                 @php($reference = $movement->reference_type.':'.$movement->reference_id)
-                @if($movement->reference_type === \App\Models\InventoryRequest::class && $reference !== $lastReference)<div style="padding:12px 18px;background:#fff3f7"><strong>{{ $movement->reason }}</strong> · <a href="{{ route('inventory.requests.show', $movement->reference_id) }}">Ver productos solicitados y entregados</a></div>@endif
+                @if($movement->reference_type === \App\Models\InventoryRequest::class && $reference !== $lastReference)
+                    @php($reversalRequest = $reversalRequests->get($movement->reference_id))
+                    <div class="activity-request-group" style="padding:12px 18px;background:#fff3f7;display:flex;align-items:center;flex-wrap:wrap;gap:8px"><strong>{{ $movement->reason }}</strong> · <a href="{{ route('inventory.requests.show', $movement->reference_id) }}">Ver productos solicitados y entregados</a>
+                        @if($reversalRequest?->reversal)<span class="activity-reversal-done">Entrega revertida</span>@elseif($reversalRequest)<button type="button" class="activity-reverse-trigger" data-reversal-open="request-reversal-{{ $reversalRequest->id }}" aria-haspopup="dialog">Revertir</button>@endif
+                    </div>
+                @endif
                 @php($lastReference = $reference)
                 <div class="activity-table-row">
                     <time data-label="Fecha">{{ $movement->created_at->format('d/m/Y H:i') }}</time>
@@ -89,4 +94,5 @@
         @if($audits->hasPages())<footer class="activity-pagination">{{ $audits->links() }}</footer>@endif
     </article>
 </section>
+@include('inventory.requests.reversal-dialog')
 </x-layouts.app>

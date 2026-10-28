@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\InventoryLocation;
 use App\Models\InventoryMovement;
+use App\Models\InventoryRequest;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -63,12 +64,21 @@ class ActivityLogController extends Controller
             ->paginate(30, ['*'], 'movement_page')
             ->withQueryString();
 
+        $canReverseRequests = session('crepe.mode') === 'almacen' && $user->hasRole('Administrador') && $user->can('mode.almacen.access');
+        $requestIds = $movements->getCollection()->where('reference_type', InventoryRequest::class)->pluck('reference_id')->unique();
+        $reversalRequests = $canReverseRequests
+            ? InventoryRequest::query()->with(['sourceLocation', 'reversal'])->whereIn('id', $requestIds)->where('status', 'closed')->get()->keyBy('id')
+            : collect();
+        $reversalTransfers = $reversalRequests->isNotEmpty()
+            ? InventoryMovement::query()->with('variant.product')->where('reference_type', InventoryRequest::class)->whereIn('reference_id', $reversalRequests->modelKeys())->where('type', 'transfer_in')->orderBy('product_variant_id')->get()->groupBy('reference_id')
+            : collect();
+
         $audits = $this->auditQuery($isAdministrator || $isWarehouse, $filters)
             ->latest('created_at')->latest('id')
             ->paginate(30, ['*'], 'audit_page')
             ->withQueryString();
 
-        return view('activity.index', compact('audits', 'filters', 'isAdministrator', 'location', 'locationOptions', 'movementTypes', 'movements'));
+        return view('activity.index', compact('audits', 'filters', 'isAdministrator', 'location', 'locationOptions', 'movementTypes', 'movements', 'reversalRequests', 'reversalTransfers'));
     }
 
     /**
