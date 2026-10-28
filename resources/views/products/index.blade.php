@@ -27,7 +27,7 @@
 @php
     $balances = $product->variants->flatMap(fn ($variant) => $variant->balances)->filter(fn ($balance) => in_array($balance->location->code, ['ALM', 'REC', 'CB'], true));
 @endphp
-<tr data-product-id="{{ $product->id }}"><td><div class="product-identity">@if($image = $product->image_paths[0] ?? null)<img class="product-thumb" src="{{ asset('storage/'.$image) }}" alt="" loading="lazy">@else<span class="product-thumb product-thumb-placeholder" aria-hidden="true">▧</span>@endif<div><a href="{{ route('products.edit', $product) }}"><strong>{{ $product->name }}</strong></a><small>{{ $product->sku }}</small></div></div></td>
+<tr data-product-id="{{ $product->id }}" data-product-url="{{ route('products.edit', $product) }}" style="cursor:pointer"><td><div class="product-identity">@if($image = $product->image_paths[0] ?? null)<img class="product-thumb" src="{{ asset('storage/'.$image) }}" alt="" loading="lazy">@else<span class="product-thumb product-thumb-placeholder" aria-hidden="true">▧</span>@endif<div><a href="{{ route('products.edit', $product) }}"><strong>{{ $product->name }}</strong></a><small>{{ $product->sku }}</small></div></div></td>
 <td><span class="catalog-status {{ $product->status !== 'active' ? 'inactive' : '' }}">{{ $product->status === 'active' ? 'Activo' : 'Inactivo' }}</span></td><td>{{ $product->brand }}<small>{{ $product->preferredSupplier?->name ?: 'Sin proveedor' }}</small></td><td>{{ $product->category?->name ?? 'Sin categoría' }}</td>
 <td class="stock-number"><div class="location-breakdown"><button type="button" class="inline-cell-trigger" popovertarget="product-stock-{{ $product->id }}">{{ number_format((float) $balances->sum('available_quantity'), 0) }} unidades ▾</button><div popover id="product-stock-{{ $product->id }}" data-location-popover aria-label="Existencias por ubicación">@foreach(['ALM' => 'Almacén', 'REC' => 'Recepción', 'CB' => 'Color Bar'] as $code => $label)<p><span>{{ $label }}</span><strong>{{ number_format((float) $balances->filter(fn ($balance) => $balance->location->code === $code)->sum('available_quantity'), 0) }}</strong></p>@endforeach<a href="{{ route('inventory.index', ['location' => 'ALM', 'search' => $product->sku ?: $product->name]) }}">Ver inventario</a></div></div></td>
 <td class="stock-number">@foreach($product->variants as $variant)@if($product->variants->count() > 1)<small>{{ $variant->name }}</small>@endif<x-inventory-inline-cell :variant="$variant" field="sale_price" :value="$variant->sale_price" :editable="$product->status === 'active'" />@endforeach</td>
@@ -35,6 +35,17 @@
 <td>@if($product->is_reception_usable)<small>Venta en Recepción</small>@endif @if($product->is_color_bar_usable)<small>Fórmulas</small>@endif @if($product->isColorBarSupply())<small>Insumo Color Bar</small>@endif</td></tr>
 @empty<tr><td colspan="8" class="empty-state">No hay productos con estos filtros.</td></tr>@endforelse
 </tbody></table></div></div>
+<script>
+(() => {
+    document.querySelectorAll('[data-product-url]').forEach(row => {
+        row.addEventListener('click', event => {
+            if (event.defaultPrevented || event.button !== 0 || window.getSelection()?.toString().trim()) return;
+            if (event.target.closest('a, button, input, select, textarea, summary, [popover], [contenteditable], [role="button"]')) return;
+            row.querySelector('.product-identity a').click();
+        });
+    });
+})();
+</script>
 @include('inventory.inline-editor')
 @else
     <div class="data-table product-data-table product-catalog-table">
