@@ -6,6 +6,7 @@ use App\Models\InventoryBalance;
 use App\Models\InventoryLocation;
 use App\Models\InventoryRequest;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Services\InventoryLimitService;
 use App\Services\InventoryWorkflowService;
@@ -17,21 +18,47 @@ use Illuminate\View\View;
 
 class InventoryWorkflowController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->hasRole('Administrador') || session('crepe.mode') === 'almacen', 403);
+        $this->ensureWarehouse($request);
+
+        return redirect()->route('inventory.index', $request->only(['search', 'brand', 'category', 'low_stock', 'page']) + ['location' => 'ALM']);
+    }
+
+    public function warehouse(Request $request): View
+    {
+        $this->ensureWarehouse($request);
         $search = trim($request->string('search')->toString());
         $brand = $request->string('brand')->toString();
-        $variants = ProductVariant::query()->with(['product.preferredSupplier', 'balances.location'])->whereHas('product', fn ($query) => $query->where('status', 'active')->when($brand, fn ($query) => $query->where('brand', $brand)))->when($search, fn ($query) => ProductSearch::variants($query, $search))->orderBy('product_id')->orderBy('id')->paginate(40)->withQueryString();
-        $locations = InventoryLocation::query()->whereIn('code', ['ALM', 'REC', 'CB'])->orderByRaw("CASE code WHEN 'ALM' THEN 1 WHEN 'REC' THEN 2 ELSE 3 END")->get();
-        $brands = Product::query()->whereNotNull('brand')->distinct()->orderBy('brand')->pluck('brand');
+        $categoryId = $request->integer('category');
+        $lowStock = $request->boolean('low_stock');
+        $locations = InventoryLocation::query()->whereIn('code', ['ALM', 'REC', 'CB'])->get()->keyBy('code');
+        $warehouseId = $locations->get('ALM')?->id;
+        $variants = ProductVariant::query()
+            ->with(['product.preferredSupplier', 'balances' => fn ($query) => $query->whereIn('inventory_location_id', $locations->pluck('id'))])
+            ->whereHas('product', fn ($query) => $query->where('status', 'active')
+                ->when($brand !== '', fn ($query) => $query->where('brand', $brand))
+                ->when($categoryId, fn ($query) => $query->where('product_category_id', $categoryId)))
+            ->when($search, fn ($query) => ProductSearch::variants($query, $search))
+            ->when($lowStock, fn ($query) => $query->whereHas('balances', fn ($balances) => $balances->where('inventory_location_id', $warehouseId)
+                ->whereRaw('inventory_balances.available_quantity <= CASE WHEN inventory_balances.limits_configured = 1 THEN inventory_balances.minimum_stock ELSE product_variants.minimum_stock END')))
+            ->orderBy(Product::query()->select('name')->whereColumn('products.id', 'product_variants.product_id'))
+            ->orderBy('id')->paginate(30)->withQueryString();
+        $brands = Product::query()->where('status', 'active')->whereNotNull('brand')->distinct()->orderBy('brand')->pluck('brand');
+        $categories = ProductCategory::query()->orderBy('name')->get();
 
-        return view('inventory.matrix', compact('variants', 'locations', 'search', 'brand', 'brands'));
+        return view('inventory.matrix', compact('variants', 'locations', 'search', 'brand', 'brands', 'categoryId', 'categories', 'lowStock'));
+    }
+
+    private function ensureWarehouse(Request $request): void
+    {
+        abort_unless($request->session()->get('crepe.mode') === 'almacen' && $request->user()->can('mode.almacen.access'), 403, 'La vista de las tres ubicaciones está disponible dentro del módulo Almacén.');
     }
 
     public function review(Request $request): View
     {
         abort_unless($request->user()->hasRole('Administrador'), 403);
+        $this->ensureWarehouse($request);
         $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:255'], 'items' => ['required', 'array', 'max:150'], 'items.*.id' => ['required', 'integer', 'distinct'], 'items.*.quantity' => ['required', 'integer', 'min:0', 'max:999999999'], 'items.*.before' => ['required', 'numeric'], 'items.*.minimum_stock' => ['required', 'integer', 'min:0', 'max:999999999'], 'items.*.maximum_stock' => ['nullable', 'integer', 'min:0', 'max:999999999'], 'items.*.limits_control' => ['required', 'string']]);
         $balances = InventoryBalance::query()->with(['variant.product', 'location'])->whereIn('id', array_column($data['items'], 'id'))->get()->keyBy('id');
         $changes = [];
@@ -65,12 +92,13 @@ class InventoryWorkflowController extends Controller
     public function store(Request $request, InventoryWorkflowService $workflow): RedirectResponse
     {
         abort_unless($request->user()->hasRole('Administrador'), 403);
+        $this->ensureWarehouse($request);
         $data = $request->validate(['key' => ['required', 'uuid']]);
         $review = $request->session()->get('inventory.workflow.'.$data['key']);
         abort_unless(is_array($review), 419, 'La revisión venció. Revisa nuevamente.');
         $workflow->adjust($review['changes'], $request->user(), $review['reason'], $data['key']);
 
-        return redirect()->route('inventory.matrix')->with('success', 'Ajustes aplicados una sola vez y registrados en la bitácora.');
+        return redirect()->route('inventory.index', ['location' => 'ALM'])->with('success', 'Ajustes aplicados una sola vez y registrados en la bitácora.');
     }
 
     public function reverse(Request $request, InventoryRequest $inventoryRequest, InventoryWorkflowService $workflow): RedirectResponse

@@ -3,7 +3,6 @@
 @php
     $canDepleteColorBar = $location === 'CB' && auth()->user()->can('mode.color-bar.access');
 @endphp
-@if(auth()->user()->hasRole('Administrador') || session('crepe.mode') === 'almacen')<div class="title-actions" style="margin-bottom:16px"><a class="button button-secondary" href="{{ route('inventory.matrix') }}">Ver Almacén, Recepción y Color Bar en columnas</a></div>@endif
 <section class="page-title flex-wrap">
     <div><p class="eyebrow">INVENTARIO · {{ $locationModel?->name ?: 'TODAS LAS UBICACIONES' }}</p><h1>{{ $location === 'CB' ? 'Inventario de insumos' : 'Existencias por ubicación' }}</h1><p>{{ $location === 'CB' ? 'Registra la baja de los envases cuando se agoten. Las fórmulas no descuentan existencias; solicita reposición a Almacén cuando la necesites.' : 'El stock se controla por ubicación; Almacén abastece a Recepción y Color Bar.' }}</p></div>
     <div class="title-actions min-w-0 flex-wrap">

@@ -47,9 +47,16 @@ class InventoryController extends Controller
         return redirect()->route('inventory.index', ['location' => 'CB'])->with('success', 'Baja de envases agotados registrada en el inventario de Color Bar.');
     }
 
-    public function index(Request $request): View
+    public function index(Request $request, InventoryWorkflowController $workflow): View
     {
-        $location = $request->string('location')->toString();
+        if ($request->session()->get('crepe.mode') === 'almacen') {
+            return $workflow->warehouse($request);
+        }
+        $location = match ($request->session()->get('crepe.mode')) {
+            'recepcion' => 'REC',
+            'color-bar' => 'CB',
+            default => $request->string('location')->toString(),
+        };
         $search = trim((string) $request->string('search'));
         $categoryId = $request->integer('category');
         $lowStock = $request->boolean('low_stock');

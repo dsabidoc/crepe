@@ -26,7 +26,7 @@ class InventoryWorkflowTest extends TestCase
         $allBefore = InventoryBalance::query()->pluck('available_quantity', 'id')->all();
         $limits = InventoryLimitService::values($balance, $balance->variant);
         $movements = InventoryMovement::count();
-        $this->actingAs($admin)->post(route('inventory.adjustments.review'), ['reason' => 'Conteo físico', 'items' => [['id' => $balance->id, 'quantity' => 3, 'before' => $balance->available_quantity, 'minimum_stock' => 1, 'maximum_stock' => 5, 'limits_control' => hash_hmac('sha256', json_encode([$balance->id, $limits], JSON_THROW_ON_ERROR), config('app.key'))]]])->assertOk()->assertSee('TODAVÍA SIN APLICAR');
+        $this->actingAs($admin)->withSession(['crepe.mode' => 'almacen'])->post(route('inventory.adjustments.review'), ['reason' => 'Conteo físico', 'items' => [['id' => $balance->id, 'quantity' => 3, 'before' => $balance->available_quantity, 'minimum_stock' => 1, 'maximum_stock' => 5, 'limits_control' => hash_hmac('sha256', json_encode([$balance->id, $limits], JSON_THROW_ON_ERROR), config('app.key'))]]])->assertOk()->assertSee('TODAVÍA SIN APLICAR');
         $this->assertSame($allBefore, InventoryBalance::query()->pluck('available_quantity', 'id')->all());
         $key = array_key_first(session('inventory.workflow'));
         $this->post(route('inventory.adjustments.store'), ['key' => $key])->assertSessionHasNoErrors();
@@ -121,7 +121,8 @@ class InventoryWorkflowTest extends TestCase
         $this->seed(CrepeSeeder::class);
         $user = User::factory()->create();
         $user->assignRole('Almacén');
-        $this->actingAs($user)->withSession(['crepe.mode' => 'almacen'])->get(route('inventory.matrix'))->assertOk();
+        $this->actingAs($user)->withSession(['crepe.mode' => 'almacen'])->get(route('inventory.matrix'))->assertRedirect(route('inventory.index', ['location' => 'ALM']));
+        $this->get(route('inventory.index', ['location' => 'ALM']))->assertOk();
         $this->post(route('inventory.adjustments.review'), [])->assertForbidden();
         $this->post(route('inventory.adjustments.store'), [])->assertForbidden();
     }

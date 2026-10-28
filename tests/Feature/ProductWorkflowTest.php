@@ -54,7 +54,7 @@ class ProductWorkflowTest extends TestCase
         $variant = ProductVariant::query()->firstOrFail();
         $variant->product->update(['name' => 'NUTRICIÓN ACEITE 30ML', 'brand' => 'TRUSS']);
         $this->actingAs($admin)->get(route('products.index', ['search' => 'truss aceite nutricion']))->assertOk()->assertSee('NUTRICIÓN ACEITE 30ML');
-        $this->get(route('inventory.matrix', ['search' => '30ml truss nutricion']))->assertOk()->assertSee('NUTRICIÓN ACEITE 30ML');
+        $this->withSession(['crepe.mode' => 'almacen'])->get(route('inventory.index', ['search' => '30ml truss nutricion']))->assertOk()->assertSee('NUTRICIÓN ACEITE 30ML');
         $query = ProductSearch::products(Product::query(), 'truss inexistente');
         $this->assertSame(0, $query->count(), $query->toSql().' '.json_encode($query->getBindings()));
         $this->get(route('products.index', ['search' => 'truss inexistente']))->assertDontSee('NUTRICIÓN ACEITE 30ML');

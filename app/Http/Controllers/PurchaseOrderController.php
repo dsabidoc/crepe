@@ -39,18 +39,26 @@ class PurchaseOrderController extends Controller
         $supplierId = $request->integer('supplier');
         $suppliers = Supplier::query()->where('is_active', true)->orderBy('name')->get();
         $orders = PurchaseOrder::query()
-            ->with(['supplier', 'items'])
+            ->with(['supplier', 'items', 'payableInvoice', 'receivedBy'])
             ->when($search, fn ($query) => $query->where(fn ($query) => $query
                 ->where('code', 'like', "%{$search}%")
+                ->orWhereHas('payableInvoice', fn ($invoices) => $invoices->where('invoice_reference', 'like', "%{$search}%"))
                 ->orWhereHas('supplier', fn ($suppliers) => $suppliers->where('name', 'like', "%{$search}%"))))
             ->when(in_array($status, ['draft', 'received'], true), fn ($query) => $query->where('status', $status))
             ->when($supplierId > 0, fn ($query) => $query->where('supplier_id', $supplierId))
-            ->latest()
+            ->latest()->latest('id')
             ->get();
 
-        return view('purchase-orders.index', compact('orders', 'search', 'status', 'supplierId', 'suppliers') + [
-            'variants' => ProductVariant::query()->with('product')->whereHas('product', fn ($query) => $query->where('status', 'active'))->orderBy('name')->get(),
-        ]);
+        $summaries = $orders->mapWithKeys(fn (PurchaseOrder $order): array => [$order->id => [
+            'products' => $order->items->count(),
+            'ordered_units' => (float) $order->items->sum('ordered_quantity'),
+            'received_units' => (float) $order->items->sum('received_quantity'),
+            'total' => $order->payableInvoice !== null ? (float) $order->payableInvoice->amount : round($order->items->sum(fn (PurchaseOrderItem $item): float => (float) $item->ordered_quantity * (float) $item->cost_snapshot), 2),
+            'paid' => $order->payableInvoice !== null ? (float) $order->payableInvoice->paid_amount : null,
+            'balance' => $order->payableInvoice !== null ? round((float) $order->payableInvoice->amount - (float) $order->payableInvoice->paid_amount, 2) : null,
+        ]]);
+
+        return view('purchase-orders.index', compact('orders', 'search', 'status', 'supplierId', 'suppliers', 'summaries'));
     }
 
     /**
