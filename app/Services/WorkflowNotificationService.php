@@ -79,6 +79,11 @@ class WorkflowNotificationService
         }
     }
 
+    public function inventoryRequestCancelled(InventoryRequest $inventoryRequest): void
+    {
+        $this->resolve(self::RequestPending, $inventoryRequest->id, 'Solicitud '.$inventoryRequest->code.' cancelada', 'Ver solicitud');
+    }
+
     public function inventoryRequestClosed(InventoryRequest $inventoryRequest): void
     {
         $inventoryRequest->loadMissing(['requester', 'sourceLocation']);

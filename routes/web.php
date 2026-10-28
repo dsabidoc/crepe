@@ -102,6 +102,8 @@ Route::middleware(['auth', EnsureConfiguredModuleAccess::class])->group(function
     Route::get('/bitacoras', [ActivityLogController::class, 'index'])->middleware('can:inventory.view')->name('activity.index');
     Route::get('/inventario/solicitudes', [InventoryRequestController::class, 'index'])->middleware('can:inventory.view')->name('inventory.requests.index');
     Route::get('/inventario/solicitudes/nueva', [InventoryRequestController::class, 'create'])->middleware('can:inventory.view')->name('inventory.requests.create');
+    Route::get('/inventario/solicitudes/{inventoryRequest}/eliminar', [InventoryRequestController::class, 'confirmCancellation'])->middleware('can:inventory.view')->name('inventory.requests.cancel');
+    Route::delete('/inventario/solicitudes/{inventoryRequest}', [InventoryRequestController::class, 'destroy'])->middleware('can:inventory.view')->name('inventory.requests.destroy');
     Route::get('/inventario/solicitudes/{inventoryRequest}', [InventoryRequestController::class, 'show'])->middleware('can:inventory.view')->name('inventory.requests.show');
     Route::post('/inventario/solicitudes', [InventoryRequestController::class, 'store'])->middleware('can:inventory.view')->name('inventory.requests.store');
     Route::get('/inventario/solicitudes/{inventoryRequest}/procesar', [InventoryRequestController::class, 'edit'])->middleware('can:inventory.requests.manage')->name('inventory.requests.edit');

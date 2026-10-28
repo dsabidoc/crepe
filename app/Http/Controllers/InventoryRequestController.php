@@ -102,6 +102,27 @@ class InventoryRequestController extends Controller
         return redirect()->route('inventory.requests.index', ['location' => $source->code])->with('success', "Solicitud {$inventoryRequest->code} enviada a Almacén.");
     }
 
+    public function confirmCancellation(Request $request, InventoryRequest $inventoryRequest, InventoryRequestService $requests): View
+    {
+        $inventoryRequest->load(['sourceLocation', 'requester', 'items.variant.product']);
+        abort_unless($requests->canCancel($inventoryRequest, $request->user(), $request->session()->get('crepe.mode')), 403);
+        abort_unless($inventoryRequest->status === 'pending', 422, 'Sólo se pueden eliminar solicitudes pendientes.');
+
+        return view('inventory.requests.cancel', compact('inventoryRequest'));
+    }
+
+    public function destroy(Request $request, InventoryRequest $inventoryRequest, InventoryRequestService $requests): RedirectResponse
+    {
+        abort_unless($requests->canCancel($inventoryRequest, $request->user(), $request->session()->get('crepe.mode')), 403);
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:255']], [
+            'reason.required' => 'Escribe el motivo para eliminar la solicitud.',
+            'reason.min' => 'Escribe un motivo de al menos 5 caracteres.',
+        ]);
+        $requests->cancel($inventoryRequest, $request->user(), $request->session()->get('crepe.mode'), $data['reason']);
+
+        return redirect()->route('inventory.requests.index')->with('success', 'Solicitud '.$inventoryRequest->code.' eliminada de pendientes. Se conservó en el historial como cancelada, sin modificar existencias.');
+    }
+
     public function edit(InventoryRequest $inventoryRequest): View
     {
         abort_unless($inventoryRequest->status === 'pending', 422, 'Esta solicitud ya fue cerrada.');
@@ -113,6 +134,8 @@ class InventoryRequestController extends Controller
 
     public function download(InventoryRequest $inventoryRequest, InventoryRequestPdfService $pdf): Response
     {
+        abort_if($inventoryRequest->status === 'cancelled', 422, 'La solicitud fue cancelada y ya no se puede preparar para entrega.');
+
         return response($pdf->render($inventoryRequest), 200, [
             'Content-Type' => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$inventoryRequest->code.'.pdf"',

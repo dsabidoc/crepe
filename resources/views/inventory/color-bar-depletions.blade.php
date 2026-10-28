@@ -67,7 +67,7 @@
                         @else
                             {{ $batch->inventoryRequest->code }}
                         @endif
-                        · {{ $batch->inventoryRequest->status === 'pending' ? 'Pendiente de entrega' : 'Cerrada' }}
+                        · {{ match ($batch->inventoryRequest->status) { 'pending' => 'Pendiente de entrega', 'cancelled' => 'Solicitud cancelada', default => 'Cerrada' } }}
                     </p>
                     <ul>@foreach($batch->inventoryRequest->items as $item)<li>{{ $item->variant->product->name }} · Solicitados: {{ $item->requested_units }} envases</li>@endforeach</ul>
                 @endif

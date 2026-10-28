@@ -20,7 +20,8 @@
         </div>
         <div class="request-process-actions">
             <a class="button button-secondary" href="{{ route('inventory.requests.download', $inventoryRequest) }}">Exportar PDF</a>
-            <a class="button button-secondary" href="{{ route('inventory.requests.index') }}">Cancelar</a>
+            <a class="button button-secondary" href="{{ route('inventory.requests.index') }}">Volver</a>
+            <a class="button button-secondary" href="{{ route('inventory.requests.cancel', $inventoryRequest) }}">Eliminar solicitud</a>
         </div>
     </section>
     <form class="surface inventory-request-form" method="POST" action="{{ route('inventory.requests.close', $inventoryRequest) }}">
