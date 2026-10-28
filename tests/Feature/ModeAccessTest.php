@@ -561,7 +561,9 @@ class ModeAccessTest extends TestCase
         $balance->update(['available_quantity' => 4]);
 
         $this->actingAs($user)->get(route('workspace', ['mode' => 'administracion']))
-            ->assertSee('Shampoo Restore con stock bajo');
+            ->assertDontSee('Shampoo Restore con stock bajo');
+        InventoryBalance::query()->where('product_variant_id', $balance->product_variant_id)->whereHas('location', fn ($query) => $query->where('code', 'ALM'))->update(['available_quantity' => 4]);
+        $this->get(route('workspace', ['mode' => 'administracion']))->assertSee('Shampoo Restore con stock bajo');
     }
 
     public function test_product_sale_creates_an_immutable_inventory_movement(): void

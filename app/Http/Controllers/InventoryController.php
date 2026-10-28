@@ -59,7 +59,7 @@ class InventoryController extends Controller
         };
         $search = trim((string) $request->string('search'));
         $categoryId = $request->integer('category');
-        $lowStock = $request->boolean('low_stock');
+        $lowStock = $location === 'ALM' && $request->boolean('low_stock');
         $locationModel = $location !== '' ? InventoryLocation::query()->where('code', $location)->first() : null;
         $balances = InventoryBalance::query()->with(['variant.product.preferredSupplier', 'location'])
             ->whereHas('variant.product', fn ($products) => $products->where('status', 'active'))

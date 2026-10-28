@@ -21,6 +21,9 @@ class InventoryLimitService
     /** @param array{minimum_stock: string|int|float, maximum_stock: string|int|float|null} $limits */
     public function update(ProductVariant $variant, InventoryLocation $location, array $limits): InventoryBalance
     {
+        if ($location->code !== 'ALM') {
+            throw ValidationException::withMessages(['limits' => 'Los mínimos y máximos se administran únicamente en Almacén.']);
+        }
         foreach (['minimum_stock', 'maximum_stock'] as $field) {
             if ($limits[$field] !== null && (! is_numeric($limits[$field]) || (float) $limits[$field] < 0 || (float) $limits[$field] > 999999999 || (float) $limits[$field] !== floor((float) $limits[$field]))) {
                 throw ValidationException::withMessages(['limits' => 'Los mínimos y máximos deben ser unidades enteras desde cero.']);

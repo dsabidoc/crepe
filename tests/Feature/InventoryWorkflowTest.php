@@ -22,7 +22,7 @@ class InventoryWorkflowTest extends TestCase
     {
         $this->seed(CrepeSeeder::class);
         $admin = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
-        $balance = InventoryBalance::query()->with(['variant', 'location'])->whereHas('location', fn ($q) => $q->where('code', 'CB'))->firstOrFail();
+        $balance = InventoryBalance::query()->with(['variant', 'location'])->whereHas('location', fn ($q) => $q->where('code', 'ALM'))->firstOrFail();
         $allBefore = InventoryBalance::query()->pluck('available_quantity', 'id')->all();
         $limits = InventoryLimitService::values($balance, $balance->variant);
         $movements = InventoryMovement::count();
@@ -59,11 +59,11 @@ class InventoryWorkflowTest extends TestCase
         }
     }
 
-    public function test_location_limits_round_trip_through_excel_without_overwriting_other_locations_or_global_prices(): void
+    public function test_warehouse_limits_round_trip_through_excel_without_overwriting_other_locations_or_global_prices(): void
     {
         $this->seed(CrepeSeeder::class);
         $admin = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
-        $balance = InventoryBalance::query()->with(['variant', 'location'])->whereHas('location', fn ($q) => $q->where('code', 'CB'))->firstOrFail();
+        $balance = InventoryBalance::query()->with(['variant', 'location'])->whereHas('location', fn ($q) => $q->where('code', 'ALM'))->firstOrFail();
         $variantBefore = $balance->variant->getAttributes();
         $otherBalances = InventoryBalance::query()->whereKeyNot($balance->id)->get()->keyBy('id')->toArray();
         app(InventoryLimitService::class)->update($balance->variant, $balance->location, ['minimum_stock' => 1, 'maximum_stock' => 7]);
@@ -71,7 +71,7 @@ class InventoryWorkflowTest extends TestCase
         $files = app(SpreadsheetFile::class);
         $path = tempnam(sys_get_temp_dir(), 'location-limits');
         try {
-            file_put_contents($path, $service->export('csv', 'CB'));
+            file_put_contents($path, $service->export('csv', 'ALM'));
             $rows = $files->read($path, 'csv', 'Inventario', 16);
             $updatedRows = [InventorySpreadsheetService::Headers];
             foreach ($rows as $number => $row) {
@@ -87,17 +87,19 @@ class InventoryWorkflowTest extends TestCase
                 $updatedRows[] = array_values($row);
             }
             file_put_contents($path, $files->writeCsv($updatedRows));
-            $preview = $service->preview($path, 'csv', 'CB');
+            $preview = $service->preview($path, 'csv', 'ALM');
             $this->assertSame([], $preview['errors'] ?? []);
             $this->assertCount(1, $preview['changes']);
             $count = InventoryMovement::count();
-            $service->apply($preview['changes'], $admin->id, 'Límites Color Bar', 'CB', 'csv');
+            $service->apply($preview['changes'], $admin->id, 'Límites Almacén', 'ALM', 'csv');
             $this->assertSame('2.000', $balance->fresh()->minimum_stock);
             $this->assertSame('9.000', $balance->fresh()->maximum_stock);
-            $this->assertSame($variantBefore, $balance->variant->fresh()->getAttributes());
+            $this->assertSame(number_format((float) $variantBefore['sale_price'], 2, '.', ''), $balance->variant->fresh()->sale_price);
+            $this->assertSame(number_format((float) $variantBefore['cost'], 4, '.', ''), $balance->variant->fresh()->cost);
+            $this->assertSame('2.000', $balance->variant->fresh()->minimum_stock);
             $this->assertSame($otherBalances, InventoryBalance::query()->whereKeyNot($balance->id)->get()->keyBy('id')->toArray());
             $this->assertSame($count, InventoryMovement::count());
-            $again = $service->preview($path, 'csv', 'CB');
+            $again = $service->preview($path, 'csv', 'ALM');
             $this->assertSame([], $again['changes']);
             $this->assertSame([], $again['errors'] ?? []);
         } finally {

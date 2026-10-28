@@ -72,6 +72,9 @@ class InventoryWorkflowController extends Controller
             }
             $max = $item['maximum_stock'] ?? null;
             $limitsChanged = (float) $item['minimum_stock'] !== (float) $limits['minimum_stock'] || ($max === null) !== ($limits['maximum_stock'] === null) || ($max !== null && (float) $max !== (float) $limits['maximum_stock']);
+            if ($limitsChanged && $balance->location->code !== 'ALM') {
+                throw ValidationException::withMessages(['items' => 'Los mínimos y máximos sólo se modifican en Almacén.']);
+            }
             if ($limitsChanged && $max !== null && $max < $item['minimum_stock']) {
                 throw ValidationException::withMessages(['items' => 'El máximo debe ser mayor o igual al mínimo.']);
             }

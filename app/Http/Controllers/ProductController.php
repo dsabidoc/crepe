@@ -27,8 +27,10 @@ class ProductController extends Controller
         $categoryId = $request->integer('category');
         $status = $request->has('status') ? $request->string('status')->toString() : 'active';
         $scope = $request->string('scope')->toString();
-        $products = Product::query()->with(['category', 'colorBarRateCategory', 'variants', 'preferredSupplier'])
+        $brand = $request->string('brand')->toString();
+        $products = Product::query()->with(['category', 'colorBarRateCategory', 'variants.balances.location', 'variants.product', 'preferredSupplier'])
             ->when($search, fn ($query) => ProductSearch::products($query, $search))
+            ->when($brand !== '', fn ($query) => $query->where('brand', $brand))
             ->when($categoryId, fn ($query) => $query->where('product_category_id', $categoryId))
             ->when(in_array($status, ['active', 'inactive'], true), fn ($query) => $query->where('status', $status))
             ->when($scope === 'color_bar', fn ($query) => $query->where('is_color_bar_usable', true))
@@ -37,6 +39,8 @@ class ProductController extends Controller
             ->orderBy('name')->paginate(15)->withQueryString();
 
         return view('products.index', [
+            'brand' => $brand,
+            'brands' => Product::query()->whereNotNull('brand')->distinct()->orderBy('brand')->pluck('brand'),
             'categories' => ProductCategory::query()->orderBy('name')->get(),
             'categoryId' => $categoryId,
             'products' => $products,

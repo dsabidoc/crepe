@@ -13,6 +13,6 @@ class ReportController extends Controller
 {
     public function index(): View
     {
-        return view('reports.index', ['tickets' => Ticket::count(), 'sales' => Payment::query()->where('status', 'registered')->sum('amount'), 'commissions' => CommissionEntry::sum('amount'), 'lowStock' => InventoryBalance::query()->with('variant')->get()->filter(fn ($balance) => $balance->available_quantity <= InventoryLimitService::values($balance, $balance->variant)['minimum_stock'])->count()]);
+        return view('reports.index', ['tickets' => Ticket::count(), 'sales' => Payment::query()->where('status', 'registered')->sum('amount'), 'commissions' => CommissionEntry::sum('amount'), 'lowStock' => InventoryBalance::query()->whereHas('location', fn ($query) => $query->where('code', 'ALM'))->with('variant')->get()->filter(fn ($balance) => $balance->available_quantity <= InventoryLimitService::values($balance, $balance->variant)['minimum_stock'])->count()]);
     }
 }

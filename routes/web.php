@@ -14,6 +14,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\FinanceCorrectionController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InventoryInlineController;
 use App\Http\Controllers\InventoryRequestController;
 use App\Http\Controllers\InventorySpreadsheetController;
 use App\Http\Controllers\InventoryWorkflowController;
@@ -73,6 +74,7 @@ Route::middleware(['auth', EnsureConfiguredModuleAccess::class])->group(function
     Route::get('/color-bar/tickets/{ticket}/historial', [ColorBarController::class, 'history'])->middleware('can:mode.color-bar.access')->name('color-bar.history');
     Route::post('/color-bar/formulas', [ColorBarController::class, 'store'])->middleware('can:mode.color-bar.access')->name('color-bar.store');
     Route::post('/color-bar/formulas/{formula}/corregir', [ColorBarController::class, 'update'])->middleware('can:mode.color-bar.access')->name('color-bar.update');
+    Route::post('/inventario/edicion-directa', [InventoryInlineController::class, 'store'])->middleware('can:inventory.view')->name('inventory.inline.store');
     Route::get('/inventario/resumen', [InventoryWorkflowController::class, 'index'])->middleware('can:inventory.view')->name('inventory.matrix');
     Route::post('/inventario/ajustes/revisar', [InventoryWorkflowController::class, 'review'])->middleware('can:inventory.view')->name('inventory.adjustments.review');
     Route::post('/inventario/ajustes', [InventoryWorkflowController::class, 'store'])->middleware('can:inventory.view')->name('inventory.adjustments.store');

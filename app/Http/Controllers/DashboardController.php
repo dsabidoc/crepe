@@ -47,6 +47,7 @@ class DashboardController extends Controller
             ->whereDate('paid_at', $today)
             ->sum('charged_total');
         $lowStock = InventoryBalance::query()
+            ->whereHas('location', fn ($query) => $query->where('code', 'ALM'))
             ->select('inventory_balances.*')
             ->join('product_variants', 'product_variants.id', '=', 'inventory_balances.product_variant_id')
             ->with(['variant.product.preferredSupplier', 'location'])

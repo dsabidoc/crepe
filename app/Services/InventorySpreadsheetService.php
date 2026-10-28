@@ -46,7 +46,7 @@ class InventorySpreadsheetService
             $payload = base64_encode(json_encode($original, JSON_THROW_ON_ERROR));
             $control = 'v3:'.$payload.':'.$this->signature($balance, $quantity, $locationCode, $payload);
 
-            return [$balance->id, $variant->sku ?? '', $product->name, $variant->name, $product->brand ?? '', $product->category?->name ?? '', $product->preferredSupplier?->name ?? '', 'unidad', $this->whole($quantity), $this->whole($quantity), $this->whole($original['minimum_stock']), $original['maximum_stock'] === null ? '' : $this->whole($original['maximum_stock']), $control, $costs ? $this->money($variant->cost) : '', $variant->sale_price, $variant->color_bar_sale_price];
+            return [$balance->id, $variant->sku ?? '', $product->name, $variant->name, $product->brand ?? '', $product->category?->name ?? '', $product->preferredSupplier?->name ?? '', 'unidad', $this->whole($quantity), $this->whole($quantity), $locationCode === 'ALM' ? $this->whole($original['minimum_stock']) : '', $locationCode !== 'ALM' || $original['maximum_stock'] === null ? '' : $this->whole($original['maximum_stock']), $control, $costs ? $this->money($variant->cost) : '', $variant->sale_price, $variant->color_bar_sale_price];
         })->values()->all();
 
         if ($format === 'csv') {
@@ -58,7 +58,7 @@ class InventorySpreadsheetService
             ['Incluye todas las existencias activas de esta ubicación, sin filtros ni paginación.'],
             ['Edita las columnas verdes: Existencia nueva, Mínimo, Máximo, Costo, Precio Recepción y Precio Color Bar, según tus permisos.'],
             ['Existencia nueva es el conteo final de esta ubicación, no una entrada de mercancía.'],
-            ['Mínimo y máximo corresponden solamente a esta ubicación. Precios y costo pertenecen al producto. El cobro por gramos conserva la tarifa de la categoría.'],
+            ['Mínimo y máximo sólo se usan en Almacén; en Recepción y Color Bar se conservan sin aplicar cambios. Precios y costo pertenecen al producto. El cobro por gramos conserva la tarifa de la categoría.'],
             ['Unidad indica productos o envases completos. Almacén, Recepción e insumos de Color Bar se cuentan en unidades.'],
             ['Puedes quitar filas; solo se actualizan las incluidas. No se agregan ni eliminan productos.'],
             ['Conserva encabezados, ID, Existencia original, Control y la hoja Inventario. No uses fórmulas.'],
@@ -67,7 +67,7 @@ class InventorySpreadsheetService
             ['Mínimo y máximo: unidades enteras. Máximo debe ser mayor o igual al mínimo; [BORRAR] quita el máximo.'],
             ['Dinero: hasta 2 decimales. Deja una celda de catálogo vacía para conservar su valor; 0 establece cero.'],
             ['Revisa y confirma los ajustes con un motivo. Cada movimiento queda en la bitácora.'],
-        ], editableColumns: [9, 10, 11, 13, 14, 15], numericColumns: [0, 8, 9, 10, 11, 13, 14, 15], precisions: [8 => 0, 9 => 0, 10 => 0, 11 => 0, 13 => 2, 14 => 2, 15 => 2]);
+        ], editableColumns: $locationCode === 'ALM' ? [9, 10, 11, 13, 14, 15] : [9, 13, 14, 15], numericColumns: [0, 8, 9, 10, 11, 13, 14, 15], precisions: [8 => 0, 9 => 0, 10 => 0, 11 => 0, 13 => 2, 14 => 2, 15 => 2]);
     }
 
     /** @return array{changes: list<array<string, mixed>>, unchanged: int, total: int, errors?: list<string>, warnings: list<string>} */
@@ -138,7 +138,7 @@ class InventorySpreadsheetService
                 $before = $after;
             }
             $values = $this->catalogValues($balance->variant, $balance);
-            if (! isset($fields['minimum_stock']) && ! isset($fields['maximum_stock']) && $this->hasInconsistentLimits($values)) {
+            if ($locationCode === 'ALM' && ! isset($fields['minimum_stock']) && ! isset($fields['maximum_stock']) && $this->hasInconsistentLimits($values)) {
                 $warnings[] = $rowContext.': Mínimo (K): '.$this->whole($values['minimum_stock']).'; Máximo (L): '.$this->whole($values['maximum_stock']).'. Son límites existentes que no modificaste. Se conservan y no bloquean los demás ajustes.';
             }
             if ($before === $after && $fields === []) {
@@ -188,6 +188,9 @@ class InventorySpreadsheetService
                 }
                 $values = $this->catalogValues($variant, $balance);
                 foreach ($change['fields'] ?? [] as $field => $diff) {
+                    if (in_array($field, ['minimum_stock', 'maximum_stock'], true) && $locationCode !== 'ALM') {
+                        throw ValidationException::withMessages(['file' => 'Los mínimos y máximos sólo se modifican en Almacén. Vuelve a revisar el archivo.']);
+                    }
                     $this->authorizeField($field, $costs, $prices, $catalog);
                     if ($values[$field] !== $diff['before']) {
                         throw ValidationException::withMessages(['file' => "Fila {$change['row']}: cambió ".self::Fields[$field]['label'].'. No se aplicó ningún ajuste. Descarga un archivo nuevo.']);
@@ -227,7 +230,7 @@ class InventorySpreadsheetService
 
     private function balances(string $locationCode): Builder
     {
-        return InventoryBalance::query()->whereHas('location', fn (Builder $query) => $query->where('code', $locationCode))
+        return InventoryBalance::query()->with('location')->whereHas('location', fn (Builder $query) => $query->where('code', $locationCode))
             ->whereHas('variant.product', fn (Builder $query) => $query->where('status', 'active'));
     }
 
@@ -256,6 +259,9 @@ class InventorySpreadsheetService
                 continue;
             }
             $isStock = in_array($field, ['minimum_stock', 'maximum_stock'], true);
+            if ($isStock && $balance->location->code !== 'ALM') {
+                continue;
+            }
             if ($field === 'maximum_stock' && $input === '[BORRAR]') {
                 $after = null;
             } else {

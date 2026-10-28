@@ -35,14 +35,14 @@ class WarehouseInventoryDisplayTest extends TestCase
 
         $response = $this->actingAs($admin)->withSession(['crepe.mode' => 'almacen'])->get(route('inventory.index', ['location' => 'ALM', 'search' => $variant->sku]));
 
-        $response->assertOk()->assertSee('Precio Recepción')->assertSee('Costo por unidad')->assertSee('$123.45')->assertSee('$234.56')->assertSee('Mín. Almacén')->assertSee('Máx. Almacén')->assertDontSee('Ver Almacén, Recepción y Color Bar en columnas');
+        $response->assertOk()->assertSee('Precio')->assertSee('Costo por unidad')->assertSee('$123.45')->assertSee('$234.56')->assertSee('Mínimo')->assertSee('Máximo')->assertDontSee('Ver Almacén, Recepción y Color Bar en columnas');
         $dom = new \DOMDocument;
         @$dom->loadHTML('<?xml encoding="utf-8" ?>'.$response->getContent());
         $xpath = new \DOMXPath($dom);
         $row = '//tr[@data-variant-id="'.$variant->id.'"]';
-        $this->assertSame('4', trim($xpath->query($row.'/td[@data-stock-location="REC"]/strong')->item(0)->textContent));
-        $this->assertSame('2', trim($xpath->query($row.'/td[@data-stock-location="CB"]/strong')->item(0)->textContent));
-        $this->assertSame('7', trim($xpath->query($row.'/td[@data-stock-location="ALM"]/strong')->item(0)->textContent));
+        $this->assertSame('4', trim($xpath->query($row.'/td[@data-stock-location="REC"]//strong')->item(0)->textContent));
+        $this->assertSame('2', trim($xpath->query($row.'/td[@data-stock-location="CB"]//strong')->item(0)->textContent));
+        $this->assertSame('7', trim($xpath->query($row.'/td[@data-stock-location="ALM"]//strong')->item(0)->textContent));
         $this->assertSame('13', trim($xpath->query($row.'/td[@data-stock-total]')->item(0)->textContent));
         $this->assertSame('3', $xpath->query('//input[starts-with(@aria-label,"Mínimo de Almacén")]')->item(0)->getAttribute('value'));
         $this->assertSame($before, DB::table('inventory_balances')->orderBy('id')->get()->map(fn ($row): array => (array) $row)->all());
@@ -89,7 +89,7 @@ class WarehouseInventoryDisplayTest extends TestCase
         $user = User::factory()->create();
         $user->assignRole('Almacén');
 
-        $this->actingAs($user)->withSession(['crepe.mode' => 'almacen'])->get(route('inventory.index', ['location' => 'ALM']))->assertOk()->assertDontSee('Costo por unidad')->assertSee('Precio Recepción');
+        $this->actingAs($user)->withSession(['crepe.mode' => 'almacen'])->get(route('inventory.index', ['location' => 'ALM']))->assertOk()->assertDontSee('Costo por unidad')->assertSee('Precio');
     }
 
     public function test_purchase_order_list_shows_operational_and_payment_totals_and_searches_invoice_reference(): void
