@@ -6,6 +6,7 @@ use App\Models\InventoryBalance;
 use App\Models\InventoryLocation;
 use App\Models\ProductCategory;
 use App\Services\InventoryService;
+use App\Services\ProductSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,17 +56,11 @@ class InventoryController extends Controller
         $locationModel = $location !== '' ? InventoryLocation::query()->where('code', $location)->first() : null;
         $balances = InventoryBalance::query()->with(['variant.product.preferredSupplier', 'location'])
             ->whereHas('variant.product', fn ($products) => $products->where('status', 'active'))
-            ->when($location === 'CB', fn ($query) => $query->whereHas('variant.product', fn ($products) => $products->colorBarSupplies()))
+            ->when($location === 'CB', fn ($query) => $query->where(fn ($visible) => $visible->where('available_quantity', '>', 0)->orWhereHas('variant.product', fn ($products) => $products->colorBarSupplies())))
             ->when($location, fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', $location)))
             ->when($categoryId, fn ($query) => $query->whereHas('variant.product', fn ($products) => $products->where('product_category_id', $categoryId)))
-            ->when($search, fn ($query) => $query->whereHas('variant', fn ($variants) => $variants
-                ->where(fn ($variantSearch) => $variantSearch
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('sku', 'like', "%{$search}%"))
-                ->orWhereHas('product', fn ($products) => $products->where(fn ($productSearch) => $productSearch
-                    ->where('name', 'like', "%{$search}%")
-                    ->orWhere('brand', 'like', "%{$search}%")))))
-            ->when($lowStock, fn ($query) => $query->whereHas('variant', fn ($variants) => $variants->whereColumn('inventory_balances.available_quantity', '<=', 'product_variants.minimum_stock')))
+            ->when($search, fn ($query) => $query->whereHas('variant', fn ($variants) => ProductSearch::variants($variants, $search)))
+            ->when($lowStock, fn ($query) => $query->whereHas('variant', fn ($variants) => $variants->whereRaw('inventory_balances.available_quantity <= CASE WHEN inventory_balances.limits_configured = 1 THEN inventory_balances.minimum_stock ELSE product_variants.minimum_stock END')))
             ->orderBy('inventory_location_id')->orderBy('product_variant_id')->paginate(30)->withQueryString();
 
         return view('inventory.index', [

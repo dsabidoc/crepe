@@ -54,7 +54,8 @@ class InventoryService
 
         $variant = ProductVariant::query()->with('product')->find($variantId);
         $supplierId = $variant?->product?->preferred_supplier_id;
-        if ($variant === null || $supplierId === null || $availableQuantity > (float) $variant->minimum_stock) {
+        $limits = $variant ? InventoryLimitService::values(InventoryBalance::query()->where('product_variant_id', $variantId)->where('inventory_location_id', $locationId)->first(), $variant) : [];
+        if ($variant === null || $supplierId === null || $availableQuantity > (float) $limits['minimum_stock']) {
             return;
         }
 
@@ -70,7 +71,7 @@ class InventoryService
         if (str_starts_with($order->code, 'OC-TEMP-')) {
             $order->update(['code' => 'OC-'.str_pad((string) $order->id, 6, '0', STR_PAD_LEFT)]);
         }
-        $targetQuantity = max((float) $variant->maximum_stock, (float) $variant->minimum_stock);
+        $targetQuantity = max((float) $limits['maximum_stock'], (float) $limits['minimum_stock']);
         $order->items()->create(['product_variant_id' => $variant->id, 'ordered_quantity' => max((int) ceil($targetQuantity - $availableQuantity), 1), 'cost_snapshot' => $variant->cost]);
     }
 }

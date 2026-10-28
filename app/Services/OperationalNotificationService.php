@@ -57,7 +57,7 @@ class OperationalNotificationService
         }
         $balances = InventoryBalance::query()->where('inventory_location_id', $locationId)
             ->whereHas('variant.product', fn ($query) => $query->where('status', 'active'))
-            ->whereHas('variant', fn ($query) => $query->whereColumn('inventory_balances.available_quantity', '<=', 'product_variants.minimum_stock'));
+            ->whereHas('variant', fn ($query) => $query->whereRaw('inventory_balances.available_quantity <= CASE WHEN inventory_balances.limits_configured = 1 THEN inventory_balances.minimum_stock ELSE product_variants.minimum_stock END'));
         $count = (clone $balances)->count();
         $emptyCount = (clone $balances)->where('available_quantity', '<=', 0)->count();
         $this->sync(self::StockLow, $location->id, $count > 0, [

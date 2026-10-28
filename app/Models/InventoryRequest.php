@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class InventoryRequest extends Model
 {
@@ -28,6 +29,11 @@ class InventoryRequest extends Model
     public function processor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'processed_by');
+    }
+
+    public function reversal(): HasOne
+    {
+        return $this->hasOne(InventoryRequestReversal::class);
     }
 
     public function items(): HasMany

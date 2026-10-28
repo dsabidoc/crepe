@@ -25,6 +25,7 @@
     </section>
     <form class="surface inventory-request-form" method="POST" action="{{ route('inventory.requests.close', $inventoryRequest) }}">
         @csrf
+@if($inventoryRequest->created_at->lt(now()->subDays(2)))<div class="notice-info"><strong>Solicitud antigua: {{ $inventoryRequest->code }}</strong> · creada el {{ $inventoryRequest->created_at->format('d/m/Y H:i') }}. Verifica que esta sea la entrega que estás preparando.<label style="display:flex;gap:10px;margin-top:10px"><input style="width:18px" type="checkbox" name="confirm_old_request" value="1" required>Confirmo que corresponde a la entrega física actual.</label></div>@endif
         <div class="request-process-notice">Captura cuántas unidades entregarás. Si Almacén no tiene todo, entrega sólo las unidades disponibles y cierra la solicitud con una nota.</div>
         <div class="request-process-list request-process-grid">
             @foreach($inventoryRequest->items as $item)

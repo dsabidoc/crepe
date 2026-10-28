@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
+use App\Models\InventoryBalance;
+use App\Models\InventoryLocation;
 use App\Models\Product;
 use App\Models\ProductBrand;
 use App\Models\ProductCategory;
@@ -239,9 +241,16 @@ class ProductSpreadsheetService
                     $product->update($change['product']);
                 }
                 if ($change['variant_id']) {
-                    ProductVariant::findOrFail($change['variant_id'])->update($change['variant']);
+                    $updatedVariant = ProductVariant::findOrFail($change['variant_id']);
+                    $updatedVariant->update($change['variant']);
                 } else {
-                    $product->variants()->create($change['variant']);
+                    $updatedVariant = $product->variants()->create($change['variant']);
+                }
+                foreach (InventoryLocation::query()->whereIn('code', ['ALM', 'REC', 'CB'])->get() as $location) {
+                    $balance = InventoryBalance::query()->firstOrCreate(['product_variant_id' => $updatedVariant->id, 'inventory_location_id' => $location->id], ['available_quantity' => 0, 'minimum_stock' => $updatedVariant->minimum_stock, 'maximum_stock' => $updatedVariant->maximum_stock, 'limits_configured' => true]);
+                    if ($location->code === 'ALM') {
+                        $balance->forceFill(['minimum_stock' => $updatedVariant->minimum_stock, 'maximum_stock' => $updatedVariant->maximum_stock, 'limits_configured' => true])->save();
+                    }
                 }
             }
             AuditLog::create([
@@ -297,7 +306,7 @@ class ProductSpreadsheetService
         if (! $values['is_reception_usable'] && ! $values['is_color_bar_usable'] && ! $values['is_color_bar_supply']) {
             $this->invalid('Selecciona al menos un uso: Recepción, Fórmulas o Insumo Color Bar.');
         }
-        if ($values['is_color_bar_usable'] && in_array($values['color_bar_pricing_type'], ['multiplier', 'both'], true) && $category->color_bar_multiplier === null) {
+        if ($values['is_color_bar_usable'] && in_array($values['color_bar_pricing_type'], ['multiplier', 'both'], true) && ($product?->colorBarRateCategory ?? $category)->color_bar_multiplier === null) {
             $this->invalid('Categoría requiere un multiplicador para el cobro de Color Bar.');
         }
         $keepsLegacyPresentation = $variant !== null

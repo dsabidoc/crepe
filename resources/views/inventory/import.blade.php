@@ -10,7 +10,7 @@
             <li>Edita las columnas verdes: <strong>Existencia nueva, Mínimo, Máximo, Costo, Precio Recepción y Precio Color Bar</strong>, según tus permisos. Existencia nueva es el conteo final, no una entrada de mercancía.</li>
             <li>Cuenta <strong>unidades o envases completos</strong> en Almacén, Recepción e insumos de Color Bar. Los gramos se registran únicamente en las fórmulas.</li>
             <li>Usa cantidades enteras; escribe <strong>0</strong> para dejar la existencia en cero. Conserva los encabezados, ID, Existencia original y Control.</li>
-            <li>Precios, costo, mínimos y máximos son del producto y se comparten entre ubicaciones. Precio Color Bar corresponde al cobro por aplicación; el cobro por gramos conserva la tarifa de la categoría.</li>
+            <li>Los mínimos y máximos corresponden sólo a la ubicación elegida. Precios y costo se comparten entre ubicaciones. Precio Color Bar corresponde al cobro por aplicación; el cobro por gramos conserva la tarifa de la categoría.</li>
             <li>Deja los campos de catálogo vacíos para conservar su valor. Usa hasta <strong>2 decimales</strong> en dinero y enteros en mínimos y máximos; <strong>[BORRAR]</strong> quita el máximo.</li>
             <li>Puedes quitar las filas que no quieras actualizar. Las filas ausentes no cambian ni se eliminan. Para agregar productos usa Productos.</li>
             <li>Guarda como <strong>.xlsx</strong> o <strong>CSV UTF-8</strong>. Revisa los cambios y confirma con un motivo.</li>

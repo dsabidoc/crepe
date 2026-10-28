@@ -67,7 +67,7 @@ class ColorBarController extends Controller
             ->get();
         $variants = ProductVariant::query()
             ->with([
-                'product.category',
+                'product.category', 'product.colorBarRateCategory',
                 'product.preferredSupplier',
             ])
             ->whereHas('product', fn ($query) => $query
@@ -78,13 +78,13 @@ class ColorBarController extends Controller
                     ->where('color_bar_pricing_type', 'fixed'))
                     ->orWhere(fn ($multiplier) => $multiplier
                         ->whereIn('color_bar_pricing_type', ['multiplier', 'both'])
-                        ->whereHas('product.category', fn ($categories) => $categories->whereNotNull('color_bar_multiplier')));
+                        ->whereHas('product', fn ($products) => $products->whereHas('colorBarRateCategory', fn ($categories) => $categories->whereNotNull('color_bar_multiplier'))->orWhere(fn ($legacy) => $legacy->whereNull('color_bar_rate_category_id')->whereHas('category', fn ($categories) => $categories->whereNotNull('color_bar_multiplier')))));
             })
             ->orderBy('product_id')
             ->orderBy('name')
             ->get();
         $recentFormulas = ColorFormula::query()
-            ->with(['ticket.customer', 'items.variant.product.preferredSupplier', 'items.variant.product.category'])
+            ->with(['ticket.customer', 'items.variant.product.preferredSupplier', 'items.variant.product.category', 'items.variant.product.colorBarRateCategory'])
             ->where('inventory_location_id', $location->id)
             ->where('status', 'confirmed')
             ->whereIn('ticket_id', $tickets->pluck('id'))
@@ -120,7 +120,7 @@ class ColorBarController extends Controller
             'supplier' => $item->variant->product->preferredSupplier?->name,
             'pricingType' => $item->unit === 'g' ? 'multiplier' : 'fixed',
             'availablePricingType' => $item->variant->color_bar_pricing_type,
-            'rate' => (float) ($item->variant->product->category?->color_bar_multiplier ?? 0),
+            'rate' => (float) (($item->variant->product->colorBarRateCategory ?? $item->variant->product->category)?->color_bar_multiplier ?? 0),
             'fixedPrice' => (float) $item->variant->color_bar_sale_price,
             'unitPrice' => (float) ($item->sale_price ?? 0),
             'quantity' => (float) $item->quantity,
@@ -130,7 +130,7 @@ class ColorBarController extends Controller
         $oldItems = $request->old('items');
         if ($selectedTicket !== null && (int) $request->old('ticket_id') === $selectedTicket->id && is_array($oldItems)) {
             $draftItems = collect($oldItems)->filter(fn ($item): bool => is_array($item));
-            $draftVariants = ProductVariant::query()->with(['product.category', 'product.preferredSupplier'])
+            $draftVariants = ProductVariant::query()->with(['product.category', 'product.colorBarRateCategory', 'product.preferredSupplier'])
                 ->whereIn('id', $draftItems->pluck('product_variant_id')->filter(fn ($id): bool => is_scalar($id) && ctype_digit((string) $id)))
                 ->get()->keyBy('id');
             $initialFormulaItems = $draftItems->map(function (array $item) use ($draftVariants): ?array {
@@ -147,9 +147,9 @@ class ColorBarController extends Controller
                     'supplier' => $variant->product->preferredSupplier?->name,
                     'pricingType' => $usesMultiplier ? 'multiplier' : 'fixed',
                     'availablePricingType' => $variant->color_bar_pricing_type,
-                    'rate' => (float) ($variant->product->category?->color_bar_multiplier ?? 0),
+                    'rate' => (float) (($variant->product->colorBarRateCategory ?? $variant->product->category)?->color_bar_multiplier ?? 0),
                     'fixedPrice' => (float) $variant->color_bar_sale_price,
-                    'unitPrice' => (float) ($usesMultiplier ? $variant->product->category?->color_bar_multiplier : $variant->color_bar_sale_price),
+                    'unitPrice' => (float) ($usesMultiplier ? ($variant->product->colorBarRateCategory ?? $variant->product->category)?->color_bar_multiplier : $variant->color_bar_sale_price),
                     'quantity' => is_scalar($item['quantity'] ?? null) ? (float) $item['quantity'] : 0,
                     'unit' => $usesMultiplier ? 'g' : 'unidad',
                     'notes' => is_string($item['notes'] ?? null) ? $item['notes'] : '',

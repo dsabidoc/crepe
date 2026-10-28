@@ -11,6 +11,8 @@
         'color_correction_reversal' => 'Corrección de fórmula (histórica)',
         'color_bar_depletion' => 'Envases agotados · Color Bar',
         'adjustment' => 'Ajuste',
+        'request_reversal_in' => 'Devolución a Almacén',
+        'request_reversal_out' => 'Entrega revertida',
     ];
 @endphp
 <section class="page-title activity-page-title">
@@ -48,7 +50,11 @@
         <header><div><p class="eyebrow">{{ $locationLabel }}</p><h2>Movimientos de inventario</h2><p>Entradas, salidas, ventas, consumos y traspasos registrados.</p></div><strong class="activity-count">{{ $movements->total() }} registros</strong></header>
         <div class="activity-table activity-movement-table product-movement-table">
             <div class="activity-table-head"><span>FECHA</span><span>PRODUCTO</span><span>MARCA</span><span>PROVEEDOR</span><span>UBICACIÓN</span><span>MOVIMIENTO</span><span>DETALLE</span></div>
+            @php($lastReference = null)
             @forelse($movements as $movement)
+                @php($reference = $movement->reference_type.':'.$movement->reference_id)
+                @if($movement->reference_type === \App\Models\InventoryRequest::class && $reference !== $lastReference)<div style="padding:12px 18px;background:#fff3f7"><strong>{{ $movement->reason }}</strong> · <a href="{{ route('inventory.requests.show', $movement->reference_id) }}">Ver productos solicitados y entregados</a></div>@endif
+                @php($lastReference = $reference)
                 <div class="activity-table-row">
                     <time data-label="Fecha">{{ $movement->created_at->format('d/m/Y H:i') }}</time>
                     <div class="product-name-cell"><strong>{{ $movement->variant?->product?->name ?: 'Producto eliminado' }}</strong><small>{{ $movement->variant?->name ?: '—' }}{{ $movement->variant?->sku ? ' · '.$movement->variant->sku : '' }}</small></div>
@@ -56,7 +62,7 @@
                     <x-product-reference :product="$movement->variant?->product" field="supplier" />
                     <span data-label="Ubicación">{{ $movement->location?->name ?: '—' }}</span>
                     <strong data-label="Movimiento" class="{{ (float) $movement->quantity < 0 ? 'activity-out' : 'activity-in' }}">{{ (float) $movement->quantity > 0 ? '+' : '' }}{{ rtrim(rtrim(number_format((float) $movement->quantity, 3), '0'), '.') }} {{ in_array($movement->type, ['color_consumption', 'color_correction_reversal'], true) ? ($movement->variant?->base_unit ?? 'g') : 'unidades' }}</strong>
-                    <div data-label="Detalle"><span>{{ $movementLabels[$movement->type] ?? str($movement->type)->replace('_', ' ')->headline() }}</span><small>{{ $movement->reason ?: 'Sin motivo capturado' }}{{ $movement->creator ? ' · '.$movement->creator->name : '' }}</small></div>
+                    <div data-label="Detalle"><span>{{ $movementLabels[$movement->type] ?? str($movement->type)->replace('_', ' ')->headline() }}</span><small>Antes: {{ (float) $movement->before_quantity }} → Después: {{ (float) $movement->after_quantity }}</small><small>Disponibles ahora: {{ (float) ($movement->variant?->balances->firstWhere('inventory_location_id', $movement->inventory_location_id)?->available_quantity ?? 0) }} unidades</small>@if($movement->reference_type === \App\Models\InventoryRequest::class)<a href="{{ route('inventory.requests.show', $movement->reference_id) }}">Ver solicitud →</a>@endif<small>{{ $movement->reason ?: 'Sin motivo capturado' }}{{ $movement->creator ? ' · '.$movement->creator->name : '' }}</small></div>
                 </div>
             @empty
                 <p class="empty-state">No hay movimientos que coincidan con los filtros.</p>

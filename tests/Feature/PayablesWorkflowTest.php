@@ -73,7 +73,10 @@ class PayablesWorkflowTest extends TestCase
         $this->seed(CrepeSeeder::class);
         $administrator = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
         $supplier = Supplier::query()->create(['name' => 'Proveedor de órdenes']);
-        $variants = ProductVariant::query()->take(2)->get();
+        $variants = ProductVariant::query()->with('product')->take(2)->get();
+        foreach ($variants as $variant) {
+            $variant->product->update(['preferred_supplier_id' => $supplier->id]);
+        }
 
         $this->actingAs($administrator)->post(route('purchase-orders.store'), [
             'supplier_id' => $supplier->id,

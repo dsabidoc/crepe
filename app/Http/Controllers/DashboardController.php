@@ -49,8 +49,8 @@ class DashboardController extends Controller
         $lowStock = InventoryBalance::query()
             ->select('inventory_balances.*')
             ->join('product_variants', 'product_variants.id', '=', 'inventory_balances.product_variant_id')
-            ->with(['variant.product', 'location'])
-            ->whereColumn('inventory_balances.available_quantity', '<=', 'product_variants.minimum_stock')
+            ->with(['variant.product.preferredSupplier', 'location'])
+            ->whereRaw('inventory_balances.available_quantity <= CASE WHEN inventory_balances.limits_configured = 1 THEN inventory_balances.minimum_stock ELSE product_variants.minimum_stock END')
             ->orderBy('inventory_balances.available_quantity')
             ->get();
 

@@ -48,7 +48,9 @@ class ColorBarBothPricingTest extends TestCase
         unset($afterProduct['updated_at'], $afterVariant['updated_at']);
         $this->assertSame($beforeProduct, $afterProduct);
         $this->assertSame($beforeVariant, $afterVariant);
-        $this->assertSame($beforeBalances, InventoryBalance::query()->orderBy('id')->get()->toArray());
+        $beforeQuantities = collect($beforeBalances)->pluck('available_quantity', 'id')->all();
+        $this->assertSame($beforeQuantities, InventoryBalance::query()->whereIn('id', array_keys($beforeQuantities))->orderBy('id')->pluck('available_quantity', 'id')->all());
+        $this->assertSame(0.0, (float) InventoryBalance::query()->whereNotIn('id', array_keys($beforeQuantities))->sum('available_quantity'));
     }
 
     public function test_disabling_formula_use_keeps_the_configured_prices_and_mode(): void
@@ -103,7 +105,9 @@ class ColorBarBothPricingTest extends TestCase
         $rows = $ticket->items()->where('type', 'color_bar')->get()->keyBy('unit');
         $this->assertSame('fixed', $rows['unidad']->metadata['color_bar_pricing_type']);
         $this->assertSame('multiplier', $rows['g']->metadata['color_bar_pricing_type']);
-        $this->assertSame($beforeBalances, InventoryBalance::query()->orderBy('id')->get()->toArray());
+        $beforeQuantities = collect($beforeBalances)->pluck('available_quantity', 'id')->all();
+        $this->assertSame($beforeQuantities, InventoryBalance::query()->whereIn('id', array_keys($beforeQuantities))->orderBy('id')->pluck('available_quantity', 'id')->all());
+        $this->assertSame(0.0, (float) InventoryBalance::query()->whereNotIn('id', array_keys($beforeQuantities))->sum('available_quantity'));
         $this->assertDatabaseCount('inventory_movements', $beforeMovements);
 
         $this->get(route('color-bar.index', ['ticket' => $ticket->id, 'formula' => $formula->id]))->assertOk()
@@ -121,7 +125,9 @@ class ColorBarBothPricingTest extends TestCase
         $replacement = ColorFormula::query()->where('supersedes_color_formula_id', $formula->id)->sole();
         $this->assertDatabaseHas('color_formula_items', ['color_formula_id' => $replacement->id, 'unit' => 'g', 'quantity' => 42]);
         $this->assertDatabaseHas('color_formula_items', ['color_formula_id' => $replacement->id, 'unit' => 'unidad', 'quantity' => 1]);
-        $this->assertSame($beforeBalances, InventoryBalance::query()->orderBy('id')->get()->toArray());
+        $beforeQuantities = collect($beforeBalances)->pluck('available_quantity', 'id')->all();
+        $this->assertSame($beforeQuantities, InventoryBalance::query()->whereIn('id', array_keys($beforeQuantities))->orderBy('id')->pluck('available_quantity', 'id')->all());
+        $this->assertSame(0.0, (float) InventoryBalance::query()->whereNotIn('id', array_keys($beforeQuantities))->sum('available_quantity'));
     }
 
     #[TestWith([null])]

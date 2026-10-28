@@ -39,14 +39,14 @@ class InventorySpreadsheetService
             $product = $variant->product;
             $quantity = $this->decimal($balance->available_quantity);
 
-            $original = $this->catalogValues($variant);
+            $original = $this->catalogValues($variant, $balance);
             if (! $costs) {
                 unset($original['cost']);
             }
             $payload = base64_encode(json_encode($original, JSON_THROW_ON_ERROR));
             $control = 'v3:'.$payload.':'.$this->signature($balance, $quantity, $locationCode, $payload);
 
-            return [$balance->id, $variant->sku ?? '', $product->name, $variant->name, $product->brand ?? '', $product->category?->name ?? '', $product->preferredSupplier?->name ?? '', 'unidad', $this->whole($quantity), $this->whole($quantity), $this->whole($variant->minimum_stock), $variant->maximum_stock === null ? '' : $this->whole($variant->maximum_stock), $control, $costs ? $this->money($variant->cost) : '', $variant->sale_price, $variant->color_bar_sale_price];
+            return [$balance->id, $variant->sku ?? '', $product->name, $variant->name, $product->brand ?? '', $product->category?->name ?? '', $product->preferredSupplier?->name ?? '', 'unidad', $this->whole($quantity), $this->whole($quantity), $this->whole($original['minimum_stock']), $original['maximum_stock'] === null ? '' : $this->whole($original['maximum_stock']), $control, $costs ? $this->money($variant->cost) : '', $variant->sale_price, $variant->color_bar_sale_price];
         })->values()->all();
 
         if ($format === 'csv') {
@@ -58,7 +58,7 @@ class InventorySpreadsheetService
             ['Incluye todas las existencias activas de esta ubicación, sin filtros ni paginación.'],
             ['Edita las columnas verdes: Existencia nueva, Mínimo, Máximo, Costo, Precio Recepción y Precio Color Bar, según tus permisos.'],
             ['Existencia nueva es el conteo final de esta ubicación, no una entrada de mercancía.'],
-            ['Precios, costo, mínimo y máximo pertenecen al producto y se comparten entre ubicaciones. El cobro por gramos conserva la tarifa de la categoría.'],
+            ['Mínimo y máximo corresponden solamente a esta ubicación. Precios y costo pertenecen al producto. El cobro por gramos conserva la tarifa de la categoría.'],
             ['Unidad indica productos o envases completos. Almacén, Recepción e insumos de Color Bar se cuentan en unidades.'],
             ['Puedes quitar filas; solo se actualizan las incluidas. No se agregan ni eliminan productos.'],
             ['Conserva encabezados, ID, Existencia original, Control y la hoja Inventario. No uses fórmulas.'],
@@ -127,7 +127,7 @@ class InventorySpreadsheetService
             try {
                 if (! $legacy) {
                     $snapshot = json_decode(base64_decode($payload, true), true, flags: JSON_THROW_ON_ERROR);
-                    $fields = $this->catalogChanges($row, $snapshot, $balance->variant, $costs, $prices, $catalog);
+                    $fields = $this->catalogChanges($row, $snapshot, $balance, $costs, $prices, $catalog);
                 }
             } catch (ValidationException $exception) {
                 $errors[] = $rowContext.': '.implode(' ', $exception->validator->errors()->all());
@@ -137,7 +137,7 @@ class InventorySpreadsheetService
             if ($before !== $after && $this->decimal($balance->available_quantity) === $after) {
                 $before = $after;
             }
-            $values = $this->catalogValues($balance->variant);
+            $values = $this->catalogValues($balance->variant, $balance);
             if (! isset($fields['minimum_stock']) && ! isset($fields['maximum_stock']) && $this->hasInconsistentLimits($values)) {
                 $warnings[] = $rowContext.': Mínimo (K): '.$this->whole($values['minimum_stock']).'; Máximo (L): '.$this->whole($values['maximum_stock']).'. Son límites existentes que no modificaste. Se conservan y no bloquean los demás ajustes.';
             }
@@ -186,7 +186,7 @@ class InventorySpreadsheetService
                 if ($balance === null || $variant === null || $variant->product?->status !== 'active' || $balance->product_variant_id !== $change['variant_id'] || ($change['before'] !== $change['after'] && $this->decimal($balance->available_quantity) !== $change['before']) || $this->variantControl($balance) !== $change['variant_control']) {
                     throw ValidationException::withMessages(['file' => "Fila {$change['row']}: la existencia o el producto cambió después de la revisión. Descarga un Excel nuevo y actualiza el conteo. No se aplicó ningún ajuste."]);
                 }
-                $values = $this->catalogValues($variant);
+                $values = $this->catalogValues($variant, $balance);
                 foreach ($change['fields'] ?? [] as $field => $diff) {
                     $this->authorizeField($field, $costs, $prices, $catalog);
                     if ($values[$field] !== $diff['before']) {
@@ -208,7 +208,13 @@ class InventorySpreadsheetService
             ]);
             foreach ($changes as $change) {
                 if (! empty($change['fields'])) {
-                    $variants[$change['variant_id']]->update(array_map(fn (array $diff): ?string => $diff['after'], $change['fields']));
+                    $updates = array_map(fn (array $diff): ?string => $diff['after'], $change['fields']);
+                    $limitUpdates = array_intersect_key($updates, array_flip(['minimum_stock', 'maximum_stock']));
+                    if ($limitUpdates !== []) {
+                        $limits = [...InventoryLimitService::values($balances[$change['id']], $variants[$change['variant_id']]), ...$limitUpdates];
+                        app(InventoryLimitService::class)->update($variants[$change['variant_id']], $warehouse, $limits);
+                    }
+                    $variants[$change['variant_id']]->update(array_diff_key($updates, array_flip(['minimum_stock', 'maximum_stock'])));
                 }
                 if ($change['before'] !== $change['after']) {
                     $this->inventory->move($change['variant_id'], $warehouse->id, round((float) $change['after'] - (float) $change['before'], 3), 'adjustment', $actorId, AuditLog::class, $audit->id, mb_substr('Importación '.($format === 'csv' ? 'CSV' : 'Excel').': '.$reason, 0, 255));
@@ -231,19 +237,19 @@ class InventorySpreadsheetService
     }
 
     /** @return array<string, ?string> */
-    private function catalogValues(ProductVariant $variant): array
+    private function catalogValues(ProductVariant $variant, InventoryBalance $balance): array
     {
-        return $variant->only(array_keys(self::Fields));
+        return [...$variant->only(array_keys(self::Fields)), ...InventoryLimitService::values($balance, $variant)];
     }
 
     /** @param array<string, string> $row
      * @param  array<string, ?string>  $snapshot
      * @return array<string, array{before: ?string, after: ?string}>
      */
-    private function catalogChanges(array $row, array $snapshot, ProductVariant $variant, bool $costs, bool $prices, bool $catalog): array
+    private function catalogChanges(array $row, array $snapshot, InventoryBalance $balance, bool $costs, bool $prices, bool $catalog): array
     {
         $changes = [];
-        $values = $this->catalogValues($variant);
+        $values = $this->catalogValues($balance->variant, $balance);
         foreach (self::Fields as $field => $definition) {
             $input = $row[$definition['column']] ?? '';
             if ($input === '') {
@@ -264,7 +270,7 @@ class InventorySpreadsheetService
                 throw ValidationException::withMessages(['file' => 'El archivo no incluye autorización para modificar costos. Descarga uno nuevo con los permisos correspondientes.']);
             }
             $before = $snapshot[$field];
-            if ($this->display($field, $before) === $this->display($field, $after)) {
+            if ($this->display($field, $before) === $this->display($field, $after) || $this->display($field, $values[$field]) === $this->display($field, $after)) {
                 continue;
             }
             $this->authorizeField($field, $costs, $prices, $catalog);

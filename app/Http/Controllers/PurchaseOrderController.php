@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\InventoryLocation;
 use App\Models\PayableInvoice;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
@@ -72,7 +73,7 @@ class PurchaseOrderController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate(['supplier_id' => ['required', Rule::exists('suppliers', 'id')->where('is_active', true)], 'notes' => ['nullable', 'string', 'max:1000'], 'items' => ['required', 'array', 'min:1'], 'items.*.product_variant_id' => ['required', 'distinct', Rule::exists('product_variants', 'id')], 'items.*.ordered_quantity' => ['required', 'integer', 'min:1']]);
+        $data = $request->validate(['supplier_id' => ['required', Rule::exists('suppliers', 'id')->where('is_active', true)], 'notes' => ['nullable', 'string', 'max:1000'], 'items' => ['required', 'array', 'min:1'], 'items.*.product_variant_id' => ['required', 'distinct', Rule::exists('product_variants', 'id')->whereIn('product_id', Product::query()->where('preferred_supplier_id', $request->input('supplier_id'))->where('status', 'active')->select('id'))], 'items.*.ordered_quantity' => ['required', 'integer', 'min:1']]);
         $order = DB::transaction(function () use ($data): PurchaseOrder {
             $order = PurchaseOrder::query()->create(['code' => 'OC-TEMP-'.str()->uuid(), 'supplier_id' => $data['supplier_id'], 'notes' => $data['notes'] ?? null]);
             $order->update(['code' => 'ODC-'.str_pad((string) $order->id, 2, '0', STR_PAD_LEFT)]);
@@ -97,7 +98,7 @@ class PurchaseOrderController extends Controller
             'purchaseOrder' => $purchaseOrder->load(['supplier', 'items.variant.product', 'payableInvoice']),
             'variants' => ProductVariant::query()
                 ->with('product')
-                ->whereHas('product', fn ($query) => $query->where('status', 'active'))
+                ->whereHas('product', fn ($query) => $query->where('status', 'active')->where('preferred_supplier_id', $purchaseOrder->supplier_id))
                 ->orderBy('name')
                 ->get(),
         ]);
@@ -107,7 +108,7 @@ class PurchaseOrderController extends Controller
     {
         $this->ensureDraft($purchaseOrder);
         $data = $request->validate([
-            'product_variant_id' => ['required', Rule::exists('product_variants', 'id')],
+            'product_variant_id' => ['required', Rule::exists('product_variants', 'id')->whereIn('product_id', Product::query()->where('preferred_supplier_id', $purchaseOrder->supplier_id)->where('status', 'active')->select('id'))],
             'ordered_quantity' => ['required', 'integer', 'min:1'],
         ]);
         $alreadyAdded = $purchaseOrder->items()

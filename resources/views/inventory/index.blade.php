@@ -3,6 +3,7 @@
 @php
     $canDepleteColorBar = $location === 'CB' && auth()->user()->can('mode.color-bar.access');
 @endphp
+@if(auth()->user()->hasRole('Administrador') || session('crepe.mode') === 'almacen')<div class="title-actions" style="margin-bottom:16px"><a class="button button-secondary" href="{{ route('inventory.matrix') }}">Ver Almacén, Recepción y Color Bar en columnas</a></div>@endif
 <section class="page-title flex-wrap">
     <div><p class="eyebrow">INVENTARIO · {{ $locationModel?->name ?: 'TODAS LAS UBICACIONES' }}</p><h1>{{ $location === 'CB' ? 'Inventario de insumos' : 'Existencias por ubicación' }}</h1><p>{{ $location === 'CB' ? 'Registra la baja de los envases cuando se agoten. Las fórmulas no descuentan existencias; solicita reposición a Almacén cuando la necesites.' : 'El stock se controla por ubicación; Almacén abastece a Recepción y Color Bar.' }}</p></div>
     <div class="title-actions min-w-0 flex-wrap">
@@ -22,19 +23,19 @@
             $wholePackages = max(0, (int) floor((float) $balance->available_quantity));
         @endphp
         <div class="table-row">
-            <div class="product-name-cell"><strong>{{ $balance->variant->product->name }}</strong>@if(! in_array(mb_strtolower(trim($balance->variant->name)), ['unidad', 'unidades'], true))<small>{{ $balance->variant->name }}</small>@endif</div>
+            <div class="product-name-cell"><strong>{{ $balance->variant->product->name }}</strong>@if($location === 'CB' && ! $balance->variant->product->isColorBarSupply())<small>Existencia registrada · no habilitado como insumo</small>@endif@if(! in_array(mb_strtolower(trim($balance->variant->name)), ['unidad', 'unidades'], true))<small>{{ $balance->variant->name }}</small>@endif</div>
             <x-product-reference :product="$balance->variant->product" field="brand" />
             <x-product-reference :product="$balance->variant->product" field="supplier" />
             <span data-label="Ubicación">{{ $balance->location->name }}</span>
             <span data-label="Unidad">Unidades</span>
             <div data-label="Existencia" class="inventory-stock-cell">
-                <strong class="product-stock-quantity {{ (float) $balance->available_quantity <= (float) $balance->variant->minimum_stock ? 'inventory-low' : '' }}">{{ rtrim(rtrim(number_format((float) $balance->available_quantity, 3), '0'), '.') }}</strong>
+                <strong class="product-stock-quantity {{ (float) $balance->available_quantity <= (float) \App\Services\InventoryLimitService::values($balance, $balance->variant)['minimum_stock'] ? 'inventory-low' : '' }}">{{ rtrim(rtrim(number_format((float) $balance->available_quantity, 3), '0'), '.') }}</strong>
 
                 @if($canDepleteColorBar && $balance->variant->product->isColorBarSupply())
                     <button class="text-button inventory-depletion-trigger" type="button" data-deplete-color-bar data-balance-id="{{ $balance->id }}" data-action="{{ route('inventory.color-bar.deplete', $balance) }}" data-name="{{ $balance->variant->product->name }} · {{ $balance->variant->name }}" data-content="Cada envase cuenta como una unidad" data-max="{{ $wholePackages }}" aria-haspopup="dialog" aria-controls="color-bar-depletion" @disabled((float) $balance->available_quantity <= 0)>Registrar envases agotados</button>
                 @endif
             </div>
-            <small data-label="Mín. / Máx.">{{ rtrim(rtrim(number_format((float) $balance->variant->minimum_stock, 3), '0'), '.') }} / {{ rtrim(rtrim(number_format((float) $balance->variant->maximum_stock, 3), '0'), '.') }}</small>
+            <small data-label="Mín. / Máx.">{{ rtrim(rtrim(number_format((float) \App\Services\InventoryLimitService::values($balance, $balance->variant)['minimum_stock'], 3), '0'), '.') }} / {{ rtrim(rtrim(number_format((float) \App\Services\InventoryLimitService::values($balance, $balance->variant)['maximum_stock'], 3), '0'), '.') }}</small>
         </div>
     @empty
         <p class="empty-state">No hay existencias registradas con estos filtros.</p>

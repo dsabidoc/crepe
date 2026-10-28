@@ -2,15 +2,27 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class FinanceTransaction extends Model
 {
     protected $fillable = [
         'finance_account_id', 'transfer_to_account_id', 'finance_expense_category_id', 'type', 'direction', 'concept', 'amount', 'occurred_on', 'reference', 'notes',
-        'cash_session_id', 'evidence_path', 'source_type', 'source_id', 'created_by',
+        'transfer_group', 'cash_session_id', 'evidence_path', 'source_type', 'source_id', 'created_by',
     ];
+
+    protected static function booted(): void
+    {
+        static::addGlobalScope('effective', fn (Builder $query) => $query->whereNotExists(fn ($corrections) => $corrections->selectRaw('1')->from('finance_transaction_corrections')->whereColumn('finance_transaction_corrections.finance_transaction_id', 'finance_transactions.id')));
+    }
+
+    public function correction(): HasOne
+    {
+        return $this->hasOne(FinanceTransactionCorrection::class);
+    }
 
     protected function casts(): array
     {

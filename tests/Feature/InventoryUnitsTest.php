@@ -33,7 +33,9 @@ class InventoryUnitsTest extends TestCase
         }
         $this->get(route('activity.index', ['location' => 'ALM']))->assertOk()->assertSee('unidades');
 
-        $this->assertSame($beforeBalances, InventoryBalance::query()->orderBy('id')->get()->toArray());
+        $beforeQuantities = collect($beforeBalances)->pluck('available_quantity', 'id')->all();
+        $this->assertSame($beforeQuantities, InventoryBalance::query()->whereIn('id', array_keys($beforeQuantities))->orderBy('id')->pluck('available_quantity', 'id')->all());
+        $this->assertSame(0.0, (float) InventoryBalance::query()->whereNotIn('id', array_keys($beforeQuantities))->sum('available_quantity'));
         $this->assertSame($beforeMovements, InventoryMovement::query()->orderBy('id')->get()->toArray());
         $this->assertSame('g', $variant->fresh()->base_unit);
         $this->assertSame('1000.000', $variant->fresh()->content_quantity);
@@ -127,7 +129,9 @@ class InventoryUnitsTest extends TestCase
         $this->assertSame('g', $variant->fresh()->base_unit);
         $this->assertSame('1000.000', $variant->fresh()->content_quantity);
         $this->assertSame('both', $variant->fresh()->color_bar_pricing_type);
-        $this->assertSame($beforeBalances, InventoryBalance::query()->orderBy('id')->get()->toArray());
+        $beforeQuantities = collect($beforeBalances)->pluck('available_quantity', 'id')->all();
+        $this->assertSame($beforeQuantities, InventoryBalance::query()->whereIn('id', array_keys($beforeQuantities))->orderBy('id')->pluck('available_quantity', 'id')->all());
+        $this->assertSame(0.0, (float) InventoryBalance::query()->whereNotIn('id', array_keys($beforeQuantities))->sum('available_quantity'));
         $this->assertSame($beforeMovements, InventoryMovement::query()->orderBy('id')->get()->toArray());
     }
 

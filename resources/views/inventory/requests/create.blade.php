@@ -13,10 +13,10 @@
 
             <div class="inventory-request-product-grid">
                 @foreach($variants as $variant)
-                    @php($stock = (float) $variant->balances->first()?->available_quantity)
+                    @php($stock = (float) $variant->balances->first(fn ($balance) => $balance->location->code === 'ALM')?->available_quantity)
                     @php($availableUnits = (int) floor($stock))
                     <label class="inventory-request-product" data-inventory-request-product data-product-id="{{ $variant->id }}" data-product-name="{{ $variant->product->name }}" data-product-brand="{{ $variant->product->brand ?: 'Sin marca' }}" data-product-supplier="{{ $variant->product->preferredSupplier?->name ?: 'Sin proveedor' }}" data-product-presentation="{{ $variant->name }}" data-search="{{ $variant->product->name }} {{ $variant->product->brand }} {{ $variant->name }} {{ $variant->sku }}">
-                        <div><strong>{{ $variant->product->name }}</strong><x-product-reference :product="$variant->product" /><small>{{ $variant->name }} · Disponibles: {{ $availableUnits }} unidades</small></div>
+                        <div><strong>{{ $variant->product->name }}</strong><x-product-reference :product="$variant->product" /><small>{{ $variant->name }} · Almacén: {{ $availableUnits }} unidades · En {{ $source->name }}: {{ (float) ($variant->balances->firstWhere('inventory_location_id', $source->id)?->available_quantity ?? 0) }} · Solicitadas pendientes: {{ (float) ($pendingUnits[$variant->id] ?? 0) }}</small></div>
                         <input type="hidden" name="items[{{ $variant->id }}][product_variant_id]" value="{{ $variant->id }}">
                         <input aria-label="Unidades de {{ $variant->product->name }}" type="number" name="items[{{ $variant->id }}][requested_units]" min="0" step="1" value="{{ old('items.'.$variant->id.'.requested_units', 0) }}" data-request-quantity>
                         <span>unidades</span>
@@ -120,6 +120,9 @@
             if (! remove) return;
             quantities.get(remove.dataset.summaryRemove).value = 0;
             renderSummary();
+        });
+        products[0]?.closest('form').addEventListener('submit', () => {
+            products.forEach(product => { if (Number(product.querySelector('[data-request-quantity]').value) <= 0) { product.querySelectorAll('[name]').forEach(input => { input.disabled = true; }); } });
         });
         renderSummary();
     })();

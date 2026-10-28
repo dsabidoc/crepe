@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ColorFormula;
 use App\Models\InventoryBalance;
 use App\Models\InventoryMovement;
+use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Models\Ticket;
 use App\Models\TicketItem;
@@ -102,5 +103,37 @@ class ColorBarFormulaTest extends TestCase
         $ticket = Ticket::query()->whereHas('customer', fn ($query) => $query->where('email', 'fernanda.ruiz@example.com'))->firstOrFail();
 
         $this->actingAs($user)->post(route('tickets.close', $ticket))->assertForbidden();
+    }
+
+    public function test_formula_uses_separate_rate_group_and_preserves_inventory_when_catalog_category_changes(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $user = User::where('email', 'hi@davidsabido.com')->firstOrFail();
+        $variant = ProductVariant::where('sku', 'KOL-71-STD')->firstOrFail();
+        $variant->update(['color_bar_pricing_type' => 'multiplier']);
+        $rateCategory = $variant->product->category;
+        $rateCategory->update(['color_bar_multiplier' => 4]);
+        $catalogCategory = ProductCategory::where('name', 'Retail')->firstOrFail();
+        $variant->product->update(['product_category_id' => $catalogCategory->id, 'color_bar_rate_category_id' => $rateCategory->id]);
+        $before = InventoryBalance::pluck('available_quantity', 'id')->all();
+        $ticket = $this->ticketForToday();
+        $this->actingAs($user)->get(route('color-bar.index', ['ticket' => $ticket->id]))->assertOk()->assertSee('data-rate="4.0000"', false)->assertViewHas('variants', fn ($variants) => $variants->contains('id', $variant->id));
+        $this->post(route('color-bar.store'), ['ticket_id' => $ticket->id, 'items' => [['product_variant_id' => $variant->id, 'quantity' => 10, 'unit' => 'g']]])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('color_formula_items', ['product_variant_id' => $variant->id, 'quantity' => 10, 'sale_price' => 4]);
+        $this->assertSame($before, InventoryBalance::pluck('available_quantity', 'id')->all());
+    }
+
+    private function ticketForToday(): Ticket
+    {
+        $ticket = Ticket::query()
+            ->whereHas('customer', fn ($query) => $query->where('email', 'fernanda.ruiz@example.com'))
+            ->with('appointment')
+            ->firstOrFail();
+        $ticket->appointment->update([
+            'starts_at' => today()->setTime(14, 0),
+            'ends_at' => today()->setTime(16, 0),
+        ]);
+
+        return $ticket->fresh('appointment');
     }
 }

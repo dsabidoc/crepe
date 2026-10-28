@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\InventoryBalance;
 use App\Models\InventoryLocation;
 use App\Models\InventoryRequest;
+use App\Models\InventoryRequestItem;
 use App\Models\ProductVariant;
 use App\Services\InventoryRequestPdfService;
 use App\Services\InventoryRequestService;
@@ -27,7 +28,7 @@ class InventoryRequestController extends Controller
         $search = trim((string) $request->string('search'));
         $requestSource = $request->string('source')->toString();
         $query = InventoryRequest::query()->with(['sourceLocation', 'requester', 'items.variant.product'])
-            ->where('status', 'pending')
+            ->when(! $request->boolean('history'), fn ($query) => $query->where('status', 'pending'))
             ->when($search, fn ($query) => $query->where(fn ($searchQuery) => $searchQuery
                 ->where('code', 'like', "%{$search}%")
                 ->orWhereHas('requester', fn ($requesters) => $requesters->where('name', 'like', "%{$search}%"))))
@@ -50,13 +51,15 @@ class InventoryRequestController extends Controller
     public function create(Request $request): View
     {
         $source = $this->sourceLocation($request);
-        $variants = ProductVariant::query()->with(['product.preferredSupplier', 'balances' => fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', 'ALM'))])
+        $variants = ProductVariant::query()->with(['product.preferredSupplier', 'balances.location'])
             ->whereHas('product', fn ($products) => $products
                 ->where('status', 'active')
                 ->when($source->code === 'CB', fn ($products) => $products->colorBarSupplies(), fn ($products) => $products->where('is_reception_usable', true)))
             ->orderBy('product_id')->orderBy('name')->get();
 
-        return view('inventory.requests.create', compact('source', 'variants'));
+        $pendingUnits = InventoryRequestItem::query()->whereHas('request', fn ($query) => $query->where('source_location_id', $source->id)->where('status', 'pending'))->selectRaw('product_variant_id, SUM(COALESCE(requested_units, requested_quantity)) as units')->groupBy('product_variant_id')->pluck('units', 'product_variant_id');
+
+        return view('inventory.requests.create', compact('source', 'variants', 'pendingUnits'));
     }
 
     public function store(Request $request, InventoryRequestService $requests): RedirectResponse
@@ -119,10 +122,9 @@ class InventoryRequestController extends Controller
 
     public function show(Request $request, InventoryRequest $inventoryRequest, WorkflowNotificationService $notifications): View
     {
-        $inventoryRequest->load(['sourceLocation', 'requester', 'processor', 'items.variant.product']);
+        $inventoryRequest->load(['sourceLocation', 'requester', 'processor', 'items.variant.product', 'items.variant.balances.location', 'reversal']);
         abort_unless($request->user()->can('inventory.requests.manage') || (
-            $inventoryRequest->requested_by === $request->user()->id
-            && $notifications->canViewLocation($request->user(), $inventoryRequest->sourceLocation->code)
+            $notifications->canViewLocation($request->user(), $inventoryRequest->sourceLocation->code)
         ), 403);
 
         return view('inventory.requests.show', compact('inventoryRequest'));
@@ -131,7 +133,7 @@ class InventoryRequestController extends Controller
     public function close(Request $request, InventoryRequest $inventoryRequest, InventoryService $inventory, WorkflowNotificationService $notifications): RedirectResponse
     {
         abort_unless($inventoryRequest->status === 'pending', 422, 'Esta solicitud ya fue cerrada.');
-        $data = $request->validate(['items' => ['required', 'array'], 'items.*' => ['required', 'integer', 'min:0'], 'closure_notes' => ['nullable', 'string', 'max:600']]);
+        $data = $request->validate(['confirm_old_request' => $inventoryRequest->created_at->lt(now()->subDays(2)) ? ['required', 'accepted'] : ['sometimes', 'accepted'], 'items' => ['required', 'array'], 'items.*' => ['required', 'integer', 'min:0'], 'closure_notes' => ['nullable', 'string', 'max:600']]);
         $before = $inventoryRequest->load('items')->toArray();
 
         DB::transaction(function () use ($data, $request, $inventoryRequest, $inventory, $notifications): void {

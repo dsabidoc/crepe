@@ -35,7 +35,7 @@ class PayableInvoiceController extends Controller
     public function show(PayableInvoice $payableInvoice): View
     {
         return view('payables.show', [
-            'invoice' => $payableInvoice->load(['purchaseOrder.supplier', 'payments.account']),
+            'invoice' => $payableInvoice->load(['purchaseOrder.supplier', 'payments' => fn ($query) => $query->withoutGlobalScope('effective')->with('account')]),
             'accounts' => FinanceAccount::query()->where('is_active', true)->orderBy('name')->get(),
         ]);
     }

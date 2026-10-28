@@ -5,7 +5,7 @@
         @can('products.export')<a class="button button-secondary" href="{{ route('products.export') }}">Descargar Excel</a><a class="button button-secondary" href="{{ route('products.export', ['format' => 'csv']) }}">Descargar CSV</a>@endcan
         @can('products.import')<a class="button button-secondary" href="{{ route('products.import.create') }}">Importar Excel / CSV</a>@endcan
         @can('imports.view')<a class="button button-secondary" href="{{ route('imports.index') }}">Historial de importaciones</a>@endcan
-        <a class="button button-secondary" href="{{ route('products.catalogs') }}">Catálogos</a><a class="button button-primary" href="{{ route('products.create') }}">+ Nuevo producto</a>
+        <a class="button button-secondary" href="{{ route('products.catalogs') }}">Catálogos</a>@can('products.catalog.manage')<a class="button button-primary" href="{{ route('products.create') }}">+ Nuevo producto</a>@endcan
     </div>
 </section>
 <section class="surface list-surface">
@@ -33,7 +33,7 @@
                 <strong data-label="Venta">
                     @if($product->is_reception_usable)Recepción ${{ number_format((float) ($variant?->sale_price ?? 0), 2) }}@endif
                     @if($product->is_color_bar_usable)
-                        <small>@if($variant?->color_bar_pricing_type === 'both')Color Bar · Ambos · ${{ number_format((float) ($variant?->color_bar_sale_price ?? 0), 2) }} por aplicación · ${{ number_format((float) ($product->category?->color_bar_multiplier ?? 0), 2) }} por gr@else{{ $variant?->color_bar_pricing_type === 'multiplier' ? 'Color Bar × $'.number_format((float) ($product->category?->color_bar_multiplier ?? 0), 2).' por gr' : 'Color Bar $'.number_format((float) ($variant?->color_bar_sale_price ?? 0), 2).' por aplicación' }}@endif</small>
+                        <small>@if($variant?->color_bar_pricing_type === 'both')Color Bar · Ambos · ${{ number_format((float) ($variant?->color_bar_sale_price ?? 0), 2) }} por aplicación · ${{ number_format((float) (($product->colorBarRateCategory ?? $product->category)?->color_bar_multiplier ?? 0), 2) }} por gr@else{{ $variant?->color_bar_pricing_type === 'multiplier' ? 'Color Bar × $'.number_format((float) (($product->colorBarRateCategory ?? $product->category)?->color_bar_multiplier ?? 0), 2).' por gr' : 'Color Bar $'.number_format((float) ($variant?->color_bar_sale_price ?? 0), 2).' por aplicación' }}@endif</small>
                     @endif
                 </strong>
                 <b>→</b>

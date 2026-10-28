@@ -91,6 +91,18 @@ class RoleModuleAccessService
 
     public function decision(User $user, string $permission): ?bool
     {
+        $restrictedIds = json_decode(AppSetting::value('products.reception_price_only_user_ids', '[]'), true);
+        if (! $user->hasRole('Administrador') && in_array($user->id, $restrictedIds, true)) {
+            if (in_array($permission, ['products.import', 'inventory.import', 'products.costs.view', 'products.prices.manage', 'products.catalog.manage'], true)) {
+                return false;
+            }
+            if ($permission === 'products.reception-prices.manage') {
+                return true;
+            }
+        }
+        if ($permission === 'products.reception-prices.manage' || $permission === 'products.catalog.manage') {
+            return $user->can('products.manage');
+        }
         if ($permission === 'roles.manage') {
             return $user->hasRole('Administrador');
         }

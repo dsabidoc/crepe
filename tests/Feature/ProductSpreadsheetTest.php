@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\InventoryBalance;
 use App\Models\InventoryMovement;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\ProductVariant;
 use App\Models\SpreadsheetImport;
 use App\Models\User;
@@ -46,7 +47,7 @@ class ProductSpreadsheetTest extends TestCase
         $this->assertDatabaseCount('products', $productCount + 5);
         $this->assertDatabaseHas('products', ['sku' => 'SH-REST', 'name' => 'Shampoo Restore', 'status' => 'active']);
         $this->assertDatabaseHas('product_variants', ['sku' => 'NUEVO-5-STD', 'cost' => 10, 'sale_price' => 25]);
-        $this->assertDatabaseCount('inventory_balances', $balanceCount);
+        $this->assertDatabaseCount('inventory_balances', $balanceCount + 15);
         $this->assertDatabaseCount('inventory_movements', $movementCount);
         $this->assertDatabaseHas('spreadsheet_imports', ['id' => $import->id, 'status' => 'applied', 'user_id' => $user->id, 'reason' => 'Nuevos productos']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'products.imported', 'user_id' => $user->id]);
@@ -271,7 +272,8 @@ class ProductSpreadsheetTest extends TestCase
         $this->assertDatabaseHas('products', ['sku' => 'SH-REST', 'name' => 'Shampoo Restore']);
         $this->assertSame(2, Product::where('sku', 'SH-REST')->sole()->variants()->count());
         $this->assertDatabaseHas('product_variants', ['sku' => 'SH-REST-NUEVO', 'cost' => 300]);
-        $this->assertSame(0, InventoryBalance::whereHas('variant', fn ($query) => $query->where('sku', 'SH-REST-NUEVO'))->count());
+        $this->assertSame(3, InventoryBalance::whereHas('variant', fn ($query) => $query->where('sku', 'SH-REST-NUEVO'))->count());
+        $this->assertSame(0.0, (float) InventoryBalance::whereHas('variant', fn ($query) => $query->where('sku', 'SH-REST-NUEVO'))->sum('available_quantity'));
     }
 
     public function test_untouched_legacy_rows_do_not_block_a_catalog_round_trip_or_change_their_values(): void
@@ -306,7 +308,28 @@ class ProductSpreadsheetTest extends TestCase
         $this->assertSame('reviewed', $import->status);
         $this->post(route('products.import.store'), ['token' => $import->token, 'reason' => 'Ambos modos de cobro'])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'color_bar_pricing_type' => 'both', 'color_bar_sale_price' => 150, 'base_unit' => 'unidad', 'sale_price' => 650]);
-        $this->assertSame($balances, InventoryBalance::pluck('available_quantity', 'id')->all());
+        $this->assertSame($balances, InventoryBalance::whereIn('id', array_keys($balances))->pluck('available_quantity', 'id')->all());
+        $this->assertSame(0.0, (float) InventoryBalance::whereNotIn('id', array_keys($balances))->sum('available_quantity'));
+    }
+
+    public function test_price_import_uses_the_separate_color_bar_rate_group_without_reclassifying_product(): void
+    {
+        $this->warehouse();
+        $variant = ProductVariant::where('sku', 'KOL-71-STD')->firstOrFail();
+        $rateCategoryId = $variant->product->product_category_id;
+        $variant->product->category->update(['color_bar_multiplier' => 3.7]);
+        $catalogCategory = ProductCategory::where('name', 'Retail')->firstOrFail();
+        $variant->product->update(['product_category_id' => $catalogCategory->id, 'color_bar_rate_category_id' => $rateCategoryId]);
+        $variant->update(['color_bar_pricing_type' => 'multiplier']);
+        $movements = InventoryMovement::count();
+        $this->post(route('products.import.preview'), ['mode' => 'update', 'file' => $this->file([['variant_sku' => $variant->sku, 'sale_price' => '150']])])->assertSessionHasNoErrors();
+        $import = SpreadsheetImport::sole();
+        $this->assertSame([], $import->preview['errors']);
+        $this->post(route('products.import.store'), ['token' => $import->token, 'reason' => 'Actualizar precio conservando tarifa'])->assertSessionHasNoErrors();
+        $this->assertSame('150.00', $variant->fresh()->sale_price);
+        $this->assertSame($rateCategoryId, $variant->product->fresh()->color_bar_rate_category_id);
+        $this->assertSame($catalogCategory->id, $variant->product->fresh()->product_category_id);
+        $this->assertSame($movements, InventoryMovement::count());
     }
 
     public function test_both_color_bar_mode_requires_a_category_multiplier_before_import(): void

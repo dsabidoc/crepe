@@ -294,7 +294,7 @@ class ColorFormulaService
         $preparedItems = [];
 
         foreach ($items as $item) {
-            $variant = ProductVariant::query()->with('product.category')->lockForUpdate()->findOrFail($item['product_variant_id']);
+            $variant = ProductVariant::query()->with('product.category', 'product.colorBarRateCategory')->lockForUpdate()->findOrFail($item['product_variant_id']);
             if ($variant->product->status !== 'active' || ! $variant->product->is_color_bar_usable) {
                 throw ValidationException::withMessages(['items' => 'Sólo puedes usar productos activos de Color Bar.']);
             }
@@ -317,7 +317,7 @@ class ColorFormulaService
                 continue;
             }
 
-            $category = $variant->product->category;
+            $category = $variant->product->colorBarRateCategory ?? $variant->product->category;
             if ($category === null || $category->color_bar_multiplier === null) {
                 throw ValidationException::withMessages(['items' => "El producto {$variant->product->name} no tiene una categoría Color Bar con multiplicador."]);
             }

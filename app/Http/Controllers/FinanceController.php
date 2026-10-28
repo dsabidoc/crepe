@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\File;
 use Illuminate\View\View;
@@ -48,8 +49,8 @@ class FinanceController extends Controller
             return view('finance.catalogs', ['categories' => FinanceExpenseCategory::query()->where('is_active', true)->orderBy('name')->get()]);
         }
 
-        $transactionQuery = FinanceTransaction::query()
-            ->with(['account', 'createdBy'])
+        $transactionQuery = FinanceTransaction::withoutGlobalScope('effective')
+            ->with(['account', 'createdBy', 'correction'])
             ->when(in_array($type, ['income', 'expense', 'transfer', 'adjustment'], true), fn ($query) => $query->where('type', $type))
             ->when($accountId > 0, fn ($query) => $query->where('finance_account_id', $accountId))
             ->when($from, fn ($query, $from) => $query->whereDate('occurred_on', '>=', $from))
@@ -81,6 +82,8 @@ class FinanceController extends Controller
             return [
                 'date' => $transaction->occurred_on?->format('d/m/Y'),
                 'sort_key' => $transaction->occurred_on?->timestamp ?? 0,
+                'transaction_id' => $transaction->id,
+                'correction' => $transaction->correction,
                 'concept' => $transaction->concept,
                 'detail' => $transaction->reference,
                 'account' => $transaction->account?->name ?? '—',
@@ -191,12 +194,15 @@ class FinanceController extends Controller
             }
             $destinationId = (int) $data['transfer_to_account_id'];
             $data['direction'] = 'out';
-            FinanceTransaction::query()->create($data);
-            FinanceTransaction::query()->create(array_merge($data, [
-                'finance_account_id' => $destinationId,
-                'transfer_to_account_id' => $data['finance_account_id'],
-                'direction' => 'in',
-            ]));
+            $data['transfer_group'] = (string) str()->uuid();
+            DB::transaction(function () use ($data, $destinationId): void {
+                FinanceTransaction::query()->create($data);
+                FinanceTransaction::query()->create(array_merge($data, [
+                    'finance_account_id' => $destinationId,
+                    'transfer_to_account_id' => $data['finance_account_id'],
+                    'direction' => 'in',
+                ]));
+            });
         } else {
             FinanceTransaction::query()->create($data);
         }
@@ -278,7 +284,7 @@ class FinanceController extends Controller
     {
         abort_if(in_array($financeAccount->name, ['C-Bancomer', 'C-Efectivo', 'Bancomer 1', 'Caja Admon', 'C-Recepción 1', 'C-Recepción 2'], true), 422, 'Esta cuenta es necesaria para la operación del sistema.');
 
-        if ($financeAccount->transactions()->exists() || $financeAccount->payments()->exists()) {
+        if ($financeAccount->transactions()->withoutGlobalScope('effective')->exists() || $financeAccount->payments()->exists()) {
             return back()->withErrors(['account' => 'No puedes eliminar una cuenta con movimientos. Conserva su historial y déjala sin usar.']);
         }
 

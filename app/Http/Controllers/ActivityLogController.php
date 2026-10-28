@@ -46,7 +46,7 @@ class ActivityLogController extends Controller
         ];
 
         $movements = InventoryMovement::query()
-            ->with(['variant.product', 'location', 'creator'])
+            ->with(['variant.product.preferredSupplier', 'variant.balances.location', 'location', 'creator'])
             ->when($location, fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', $location)))
             ->when($filters['movement_type'], fn ($query, $type) => $query->where('type', $type))
             ->when($filters['from'], fn ($query, $from) => $query->whereDate('created_at', '>=', $from))
@@ -58,12 +58,12 @@ class ActivityLogController extends Controller
                         ->orWhereHas('variant', fn ($variants) => $variants->where('name', 'like', "%{$search}%")->orWhere('sku', 'like', "%{$search}%"));
                 });
             })
-            ->latest('created_at')
+            ->latest('created_at')->latest('id')
             ->paginate(30, ['*'], 'movement_page')
             ->withQueryString();
 
         $audits = $this->auditQuery($isAdministrator || $isWarehouse, $filters)
-            ->latest('created_at')
+            ->latest('created_at')->latest('id')
             ->paginate(30, ['*'], 'audit_page')
             ->withQueryString();
 
