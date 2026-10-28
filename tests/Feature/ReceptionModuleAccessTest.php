@@ -28,7 +28,7 @@ class ReceptionModuleAccessTest extends TestCase
         $this->actingAs($receptionist)->get(route('modes.select'))
             ->assertSee('Color Bar')->assertSee('Almacén');
         $this->withSession(['crepe.mode' => 'recepcion'])->get(route('tickets.index'))
-            ->assertSee('href="'.route('workspace', 'almacen').'"', false);
+            ->assertDontSee('href="'.route('workspace', 'almacen').'"', false);
         $this->get(route('color-bar.index'))
             ->assertSessionHas('crepe.mode', 'color-bar')
             ->assertSee('Inventario de insumos')->assertSee('Baja de insumos');
@@ -78,8 +78,10 @@ class ReceptionModuleAccessTest extends TestCase
 
         $this->actingAs($processor)->withSession(['crepe.mode' => 'recepcion'])
             ->postJson(route('notifications.open', $notification->id))
-            ->assertOk()->assertJsonPath('url', route('inventory.requests.edit', $inventoryRequest))
-            ->assertSessionHas('crepe.mode', 'almacen');
+            ->assertOk()->assertJsonPath('url', $location === 'REC' ? route('inventory.requests.show', $inventoryRequest) : route('modes.select'))
+            ->assertSessionHas('crepe.mode', 'recepcion');
+        $this->post(route('modes.store'), ['mode' => 'almacen'])->assertRedirect(route('workspace', 'almacen'));
+        $this->postJson(route('notifications.open', $notification->id))->assertJsonPath('url', route('inventory.requests.edit', $inventoryRequest));
         $this->get(route('inventory.requests.index'))->assertSee($inventoryRequest->code);
         $this->get(route('inventory.requests.edit', $inventoryRequest))->assertSee($inventoryRequest->code);
         $item = $inventoryRequest->items()->sole();

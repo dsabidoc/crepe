@@ -26,7 +26,7 @@ class InventoryRequestController extends Controller
     {
         $source = $this->sourceLocation($request, false);
         $search = trim((string) $request->string('search'));
-        $requestSource = $request->string('source')->toString();
+        $requestSource = $source?->code ?? $request->string('source')->toString();
         $query = InventoryRequest::query()->with(['sourceLocation', 'requester', 'items.variant.product'])
             ->when(! $request->boolean('history'), fn ($query) => $query->where('status', 'pending'))
             ->when($search, fn ($query) => $query->where(fn ($searchQuery) => $searchQuery
@@ -122,6 +122,8 @@ class InventoryRequestController extends Controller
 
     public function show(Request $request, InventoryRequest $inventoryRequest, WorkflowNotificationService $notifications): View
     {
+        $source = $this->sourceLocation($request, false);
+        abort_unless($source === null || $inventoryRequest->source_location_id === $source->id, 403);
         $inventoryRequest->load(['sourceLocation', 'requester', 'processor', 'items.variant.product', 'items.variant.balances.location', 'reversal']);
         abort_unless($request->user()->can('inventory.requests.manage') || (
             $notifications->canViewLocation($request->user(), $inventoryRequest->sourceLocation->code)
@@ -164,25 +166,24 @@ class InventoryRequestController extends Controller
 
     private function sourceLocation(Request $request, bool $required = true): ?InventoryLocation
     {
-        $code = $request->string('location')->upper()->toString();
-        $isAdministrator = $request->user()->can('settings.manage');
-        $isWarehouse = $request->user()->can('inventory.requests.manage') && session('crepe.mode') === 'almacen';
+        $mode = $request->session()->get('crepe.mode');
+        if ($mode === 'almacen') {
+            abort_unless($request->user()->can('mode.almacen.access') && $request->user()->can('inventory.requests.manage'), 403);
+            abort_if($required, 403, 'Almacén sólo puede procesar solicitudes existentes.');
 
-        if ($code === '' && ! $isAdministrator && ! $isWarehouse) {
-            $code = session('crepe.mode') === 'color-bar' ? 'CB' : 'REC';
-        }
-        if ($code === '' && ! $required) {
             return null;
         }
-        if ($isWarehouse) {
-            if (! $required) {
-                return null;
-            }
 
-            abort(403, 'Almacén sólo puede procesar solicitudes existentes.');
-        }
-        abort_unless(in_array($code, ['REC', 'CB'], true), 422, 'Selecciona una ubicación solicitante válida.');
-        abort_unless($isAdministrator || ($code === 'CB' && session('crepe.mode') === 'color-bar') || ($code === 'REC' && session('crepe.mode') === 'recepcion'), 403);
+        $code = match ($mode) {
+            'recepcion' => 'REC',
+            'color-bar' => 'CB',
+            default => null,
+        };
+        abort_unless($code !== null, 403, 'Selecciona Recepción o Color Bar para solicitar productos a Almacén.');
+        $permission = $code === 'REC' ? 'mode.reception.access' : 'mode.color-bar.access';
+        abort_unless($request->user()->can($permission), 403);
+        $submittedLocation = $request->string('location')->upper()->toString();
+        abort_unless($submittedLocation === '' || $submittedLocation === $code, 403, 'La solicitud debe corresponder al módulo activo.');
 
         return InventoryLocation::query()->where('code', $code)->firstOrFail();
     }

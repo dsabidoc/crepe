@@ -1,5 +1,5 @@
 <x-layouts.app title="Nueva solicitud de inventario">
-<section class="page-title"><div><p class="eyebrow">INVENTARIO · {{ $source->name }}</p><h1>{{ $source->code === 'CB' ? 'Solicitar insumos' : 'Solicitar inventario' }}</h1><p>Selecciona lo que necesitas. Almacén entregará lo disponible y cerrará esta solicitud sin pendientes.</p></div><a class="button button-secondary" href="{{ route('inventory.requests.index', ['location' => $source->code]) }}">Cancelar</a></section>
+<section class="page-title"><div><p class="eyebrow">INVENTARIO · {{ $source->name }}</p><h1>Solicitar productos a Almacén</h1><p><strong>Destino: {{ $source->name }}.</strong> Selecciona lo que necesitas. Almacén entregará lo disponible y cerrará esta solicitud sin pendientes.</p></div><a class="button button-secondary" href="{{ route('inventory.requests.index', ['location' => $source->code]) }}">Cancelar</a></section>
 <form class="surface inventory-request-form" method="POST" action="{{ route('inventory.requests.store') }}">
     @csrf
     <input type="hidden" name="location" value="{{ $source->code }}">
@@ -13,10 +13,8 @@
 
             <div class="inventory-request-product-grid">
                 @foreach($variants as $variant)
-                    @php($stock = (float) $variant->balances->first(fn ($balance) => $balance->location->code === 'ALM')?->available_quantity)
-                    @php($availableUnits = (int) floor($stock))
                     <label class="inventory-request-product" data-inventory-request-product data-product-id="{{ $variant->id }}" data-product-name="{{ $variant->product->name }}" data-product-brand="{{ $variant->product->brand ?: 'Sin marca' }}" data-product-supplier="{{ $variant->product->preferredSupplier?->name ?: 'Sin proveedor' }}" data-product-presentation="{{ $variant->name }}" data-search="{{ $variant->product->name }} {{ $variant->product->brand }} {{ $variant->name }} {{ $variant->sku }}">
-                        <div><strong>{{ $variant->product->name }}</strong><x-product-reference :product="$variant->product" /><small>{{ $variant->name }} · Almacén: {{ $availableUnits }} unidades · En {{ $source->name }}: {{ (float) ($variant->balances->firstWhere('inventory_location_id', $source->id)?->available_quantity ?? 0) }} · Solicitadas pendientes: {{ (float) ($pendingUnits[$variant->id] ?? 0) }}</small></div>
+                        <div><strong>{{ $variant->product->name }}</strong><x-product-reference :product="$variant->product" /><small>{{ $variant->name }} · En {{ $source->name }}: {{ (float) ($variant->balances->firstWhere('inventory_location_id', $source->id)?->available_quantity ?? 0) }} · Solicitadas pendientes: {{ (float) ($pendingUnits[$variant->id] ?? 0) }}</small></div>
                         <input type="hidden" name="items[{{ $variant->id }}][product_variant_id]" value="{{ $variant->id }}">
                         <input aria-label="Unidades de {{ $variant->product->name }}" type="number" name="items[{{ $variant->id }}][requested_units]" min="0" step="1" value="{{ old('items.'.$variant->id.'.requested_units', 0) }}" data-request-quantity>
                         <span>unidades</span>

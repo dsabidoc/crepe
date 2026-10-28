@@ -10,7 +10,7 @@
         @can('inventory.export')<a class="button button-secondary" href="{{ route('inventory.export', ['location_code' => in_array($location, ['ALM', 'REC', 'CB'], true) ? $location : 'ALM']) }}">Descargar Excel</a><a class="button button-secondary" href="{{ route('inventory.export', ['format' => 'csv', 'location_code' => in_array($location, ['ALM', 'REC', 'CB'], true) ? $location : 'ALM']) }}">Descargar CSV</a>@endcan
         @if($location === 'ALM')@can('inventory.import')<a class="button button-primary" href="{{ route('inventory.import.create', ['location_code' => in_array($location, ['ALM', 'REC', 'CB'], true) ? $location : 'ALM']) }}">Importar Excel / CSV</a>@endcan
         @endif
-        @can('imports.view')<a class="button button-secondary" href="{{ route('imports.index') }}">Historial de importaciones</a>@endcan
+        @if($location === 'ALM')@can('imports.view')<a class="button button-secondary" href="{{ route('imports.index') }}">Historial de importaciones</a>@endcan @endif
         @if(in_array($location, ['REC', 'CB'], true))<a class="button button-primary" href="{{ route('inventory.requests.create', ['location' => $location]) }}">+ Solicitar inventario</a>@endif
         <a class="button button-secondary" href="{{ route('inventory.requests.index', $location ? ['location' => $location] : []) }}">Solicitudes</a>
         <a class="button button-secondary" href="{{ route('activity.index', $location ? ['location' => $location] : []) }}">Bitácoras</a>

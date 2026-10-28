@@ -2,6 +2,7 @@
     <section class="mode-page">
         <header class="mode-header"><a class="brand-lockup" href="{{ route('modes.select') }}"><x-brand-logo /></a><div class="account-menu"><div class="avatar">{{ str(auth()->user()->name)->substr(0, 1) }}</div><div><strong>{{ auth()->user()->name }}</strong><span>{{ auth()->user()->getRoleNames()->first() }}</span></div><form method="POST" action="{{ route('logout') }}">@csrf<button class="text-button" type="submit">Salir</button></form></div></header>
         <div class="mode-intro"><p class="eyebrow">CREPÉ · OPERACIÓN</p><h1>¿Dónde quieres trabajar?</h1><p>Elige un modo. Siempre podrás cambiarlo sin cerrar sesión.</p></div>
+        @if(session('mode_notice'))<p class="notice-info">{{ session('mode_notice') }}</p>@endif
         @php($details = [
             'administracion' => ['key' => '01', 'description' => 'Dashboard, clientas, equipo, servicios y reportes.', 'icon' => '↗'],
             'recepcion' => ['key' => '02', 'description' => 'Citas, tickets, clientas, cobros e inventario de Recepción.', 'icon' => '◇'],

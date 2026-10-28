@@ -17,7 +17,8 @@ class ActivityLogController extends Controller
     public function index(Request $request): View
     {
         $user = $request->user();
-        $isAdministrator = $user->can('settings.manage');
+        $isOwnArea = in_array(session('crepe.mode'), ['recepcion', 'color-bar'], true);
+        $isAdministrator = $user->can('settings.manage') && ! $isOwnArea;
         $isWarehouse = $user->can('inventory.requests.manage') && session('crepe.mode') === 'almacen';
         $modeLocation = match (session('crepe.mode')) {
             'recepcion' => 'REC',

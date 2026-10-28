@@ -63,6 +63,7 @@ class InventoryController extends Controller
         $locationModel = $location !== '' ? InventoryLocation::query()->where('code', $location)->first() : null;
         $balances = InventoryBalance::query()->with(['variant.product.preferredSupplier', 'location'])
             ->whereHas('variant.product', fn ($products) => $products->where('status', 'active'))
+            ->when($location === 'REC', fn ($query) => $query->where(fn ($visible) => $visible->where('available_quantity', '!=', 0)->orWhereHas('variant.product', fn ($products) => $products->where('is_reception_usable', true))))
             ->when($location === 'CB', fn ($query) => $query->where(fn ($visible) => $visible->where('available_quantity', '>', 0)->orWhereHas('variant.product', fn ($products) => $products->colorBarSupplies())))
             ->when($location, fn ($query) => $query->whereHas('location', fn ($locations) => $locations->where('code', $location)))
             ->when($categoryId, fn ($query) => $query->whereHas('variant.product', fn ($products) => $products->where('product_category_id', $categoryId)))

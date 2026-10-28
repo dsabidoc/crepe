@@ -14,9 +14,9 @@
         @if($inventoryRequest->notes)<p><strong>Solicitud:</strong> {{ $inventoryRequest->notes }}</p>@endif
         @if($inventoryRequest->closure_notes)<p><strong>Nota de Almacén:</strong> {{ $inventoryRequest->closure_notes }}</p>@endif
         @if($inventoryRequest->status === 'closed')<p class="notice-info">La solicitud está cerrada. Los productos no entregados no quedan pendientes en esta solicitud.</p>@endif
-        @if(auth()->user()->hasRole('Administrador') && $inventoryRequest->status === 'closed' && !$inventoryRequest->reversal)
+        @if(session('crepe.mode') === 'almacen' && auth()->user()->hasRole('Administrador') && $inventoryRequest->status === 'closed' && !$inventoryRequest->reversal)
         @if($inventoryRequest->code === 'SOL-000020' || $inventoryRequest->reversal_hold_reason)<p class="notice-info">Reversión bloqueada hasta confirmar la entrega física de esta solicitud.</p>@else<details><summary>Revertir entrega a Almacén</summary><p>Devuelve todas las unidades de esta entrega. Se verificará que la ubicación destino todavía las tenga disponibles y se conservará el historial.</p><form method="POST" action="{{ route('inventory.requests.reverse', $inventoryRequest) }}" onsubmit="return confirm('¿Confirmas que se devolverán físicamente a Almacén todas las unidades de esta entrega?')">@csrf<input type="hidden" name="key" value="{{ (string) str()->uuid() }}"><label><span>Motivo</span><input name="reason" required minlength="5" maxlength="255"></label><button class="button button-secondary">Confirmar reversión completa</button></form></details>@endif
         @endif
-        @can('inventory.requests.manage')@if($inventoryRequest->status === 'pending')<a class="button button-primary" href="{{ route('inventory.requests.edit', $inventoryRequest) }}">Atender solicitud</a>@endif@endcan
+        @can('inventory.requests.manage')@if(session('crepe.mode') === 'almacen' && $inventoryRequest->status === 'pending')<a class="button button-primary" href="{{ route('inventory.requests.edit', $inventoryRequest) }}">Atender solicitud</a>@endif@endcan
     </section>
 </x-layouts.app>

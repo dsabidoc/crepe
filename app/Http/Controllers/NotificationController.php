@@ -99,17 +99,26 @@ class NotificationController extends Controller
         $inventoryRequest = InventoryRequest::query()->with('sourceLocation')->findOrFail($notification->subject_id);
         $canProcess = $request->user()->can('inventory.requests.manage');
         abort_unless($request->user()->can('inventory.view') && ($canProcess || $inventoryRequest->requested_by === $request->user()->id), 403);
-        $mode = $canProcess && $request->user()->can('mode.almacen.access') ? 'almacen' : ($inventoryRequest->sourceLocation->code === 'CB' ? 'color-bar' : 'recepcion');
-        $permission = ['almacen' => 'mode.almacen.access', 'color-bar' => 'mode.color-bar.access', 'recepcion' => 'mode.reception.access'][$mode];
-        if ($request->user()->can($permission)) {
-            $request->session()->put('crepe.mode', $mode);
+        $activeMode = $request->session()->get('crepe.mode');
+        $destinationMode = $inventoryRequest->sourceLocation->code === 'CB' ? 'color-bar' : 'recepcion';
+        if ($activeMode === 'almacen' && $canProcess && $request->user()->can('mode.almacen.access')) {
+            return route($inventoryRequest->status === 'pending' ? 'inventory.requests.edit' : 'inventory.requests.show', $inventoryRequest);
         }
+        if ($activeMode === $destinationMode && app(WorkflowNotificationService::class)->canViewLocation($request->user(), $inventoryRequest->sourceLocation->code)) {
+            return route('inventory.requests.show', $inventoryRequest);
+        }
+        $request->session()->flash('mode_notice', 'Selecciona el módulo correspondiente para consultar esta solicitud. Almacén atiende las entregas.');
 
-        return route($canProcess && $inventoryRequest->status === 'pending' ? 'inventory.requests.edit' : 'inventory.requests.show', $inventoryRequest);
+        return route('modes.select');
     }
 
     private function operationalDestination(Request $request, DatabaseNotification $notification): string
     {
+        if ($notification->type === OperationalNotificationService::StockLow && $request->session()->get('crepe.mode') !== 'almacen') {
+            $request->session()->flash('mode_notice', 'Selecciona Almacén para revisar las existencias y el reabasto a proveedores.');
+
+            return route('modes.select');
+        }
         $mode = match ($notification->type) {
             OperationalNotificationService::StockLow => ['almacen', 'mode.almacen.access'],
             OperationalNotificationService::PayablePending => ['finanzas', 'finance.view'],

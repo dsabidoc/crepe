@@ -21,7 +21,7 @@ class InventoryRequestReversalTest extends TestCase
     {
         $this->seed(CrepeSeeder::class);
         $admin = User::query()->where('email', 'hi@davidsabido.com')->firstOrFail();
-        $this->actingAs($admin);
+        $this->actingAs($admin)->withSession(['crepe.mode' => 'almacen']);
         $warehouse = InventoryLocation::where('code', 'ALM')->firstOrFail();
         $destination = InventoryLocation::where('code', 'CB')->firstOrFail();
         $variant = ProductVariant::where('sku', 'KOL-71-STD')->firstOrFail();
