@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SpreadsheetImport;
+use App\Services\InventoryFilter;
 use App\Services\InventorySpreadsheetService;
 use App\Services\SpreadsheetFile;
 use App\Services\SpreadsheetImportService;
@@ -21,7 +22,7 @@ class InventorySpreadsheetController extends Controller
         $format = $data['format'] ?? 'xlsx';
         $location = $data['location_code'] ?? 'ALM';
 
-        return $files->download($spreadsheets->export($format, $location, $request->user()->can('products.costs.view')), 'inventario-'.['ALM' => 'almacen', 'REC' => 'recepcion', 'CB' => 'color-bar'][$location].'-'.now()->format('Y-m-d-His'), $format);
+        return $files->download($spreadsheets->export($format, $location, $request->user()->can('products.costs.view'), InventoryFilter::read($request)), 'inventario-'.['ALM' => 'almacen', 'REC' => 'recepcion', 'CB' => 'color-bar'][$location].'-'.now()->format('Y-m-d-His'), $format);
     }
 
     public function create(Request $request): View

@@ -1,4 +1,5 @@
 <x-layouts.app title="Orden de compra">
+@include('inventory.replenishment-result')
     <section class="page-heading">
         <div><p class="eyebrow">ORDEN DE COMPRA</p><h1>{{ $purchaseOrder->code }}</h1><p>{{ $purchaseOrder->supplier->name }} · {{ $purchaseOrder->status === 'received' ? 'Recibida' : 'Pendiente de recepción' }}</p></div>
         <div class="title-actions"><a class="button button-secondary" href="{{ route('purchase-orders.download', $purchaseOrder) }}">↓ Descargar PDF</a><a class="button button-secondary" href="{{ route('purchase-orders.index') }}">Volver</a></div>

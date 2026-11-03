@@ -35,7 +35,7 @@ class InventorySpreadsheetTest extends TestCase
             InventoryBalance::query()->create(['product_variant_id' => $variant->id, 'inventory_location_id' => $balance->inventory_location_id, 'available_quantity' => 12]);
         }
 
-        $response = $this->actingAs($user)->get(route('inventory.export', ['search' => 'sin coincidencias', 'page' => 2, 'location' => 'REC']));
+        $response = $this->actingAs($user)->get(route('inventory.export', ['page' => 2, 'location' => 'REC']));
         $response->assertDownload('inventario-almacen-'.now()->format('Y-m-d-His').'.xlsx');
         $xml = $this->sheet($response->getContent());
         $skus = [];

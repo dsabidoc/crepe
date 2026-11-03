@@ -1,4 +1,5 @@
 <x-layouts.app title="Órdenes de compra">
+@include('inventory.replenishment-result')
     <section class="page-heading">
         <div><p class="eyebrow">ALMACÉN</p><h1>Órdenes de compra</h1><p>Consulta pedidos por proveedor, revisa su estatus y abre la recepción cuando lleguen.</p></div>
         <div class="title-actions"><a class="button button-secondary" href="{{ route('products.catalogs') }}">Catálogos</a><a class="button button-primary" href="{{ route('purchase-orders.create') }}">+ Nueva orden</a></div>

@@ -26,9 +26,10 @@ class InventorySpreadsheetService
 
     public function __construct(private InventoryWorkbook $workbook, private InventoryService $inventory, private SpreadsheetFile $files) {}
 
-    public function export(string $format = 'xlsx', string $locationCode = 'ALM', bool $costs = true): string
+    public function export(string $format = 'xlsx', string $locationCode = 'ALM', bool $costs = true, array $filters = []): string
     {
-        $balances = $this->balances($locationCode)->with(['variant.product.category', 'variant.product.preferredSupplier'])->limit(10001)->get();
+        $filterLocation = $locationCode === 'ALM' ? InventoryLocation::query()->where('code', 'ALM')->value('id') : null;
+        $balances = $this->balances($locationCode)->whereHas('variant', fn ($variants) => InventoryFilter::apply($variants, $filters, $filterLocation))->with(['variant.product.category', 'variant.product.preferredSupplier'])->limit(10001)->get();
         if ($balances->count() > 10000) {
             throw ValidationException::withMessages(['file' => 'La exportación admite hasta 10,000 existencias.']);
         }
@@ -55,7 +56,7 @@ class InventorySpreadsheetService
 
         return $this->workbook->write($rows, headers: self::Headers, instructions: [
             ['INVENTARIO · '.$this->locationName($locationCode).' · CREPÉ'], ['Descargado: '.now()->format('d/m/Y H:i')],
-            ['Incluye todas las existencias activas de esta ubicación, sin filtros ni paginación.'],
+            ['Incluye todas las existencias activas que coinciden con los filtros aplicados, sin limitarse a la página visible.'],
             ['Edita las columnas verdes: Existencia nueva, Mínimo, Máximo, Costo, Precio Recepción y Precio Color Bar, según tus permisos.'],
             ['Existencia nueva es el conteo final de esta ubicación, no una entrada de mercancía.'],
             ['Mínimo y máximo sólo se usan en Almacén; en Recepción y Color Bar se conservan sin aplicar cambios. Precios y costo pertenecen al producto. El cobro por gramos conserva la tarifa de la categoría.'],

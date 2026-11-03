@@ -15,6 +15,7 @@ use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\FinanceCorrectionController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\InventoryInlineController;
+use App\Http\Controllers\InventoryPurchaseOrderController;
 use App\Http\Controllers\InventoryRequestController;
 use App\Http\Controllers\InventorySpreadsheetController;
 use App\Http\Controllers\InventoryWorkflowController;
@@ -83,6 +84,7 @@ Route::middleware(['auth', EnsureConfiguredModuleAccess::class])->group(function
     Route::get('/finanzas/movimientos/{transaction}/corregir', [FinanceCorrectionController::class, 'edit'])->middleware('can:finance.view')->name('finance.corrections.edit');
     Route::post('/finanzas/movimientos/{transaction}/corregir', [FinanceCorrectionController::class, 'store'])->middleware('can:finance.view')->name('finance.corrections.store');
     Route::get('/inventario', [InventoryController::class, 'index'])->middleware('can:inventory.view')->name('inventory.index');
+    Route::post('/inventario/ordenes-compra', [InventoryPurchaseOrderController::class, 'store'])->middleware(['can:inventory.view', 'can:inventory.requests.manage'])->name('inventory.purchase-orders.store');
     Route::get('/inventario/color-bar/bajas', [ColorBarDepletionController::class, 'create'])->middleware(['can:inventory.view', 'can:mode.color-bar.access'])->name('inventory.color-bar.depletions.create');
     Route::post('/inventario/color-bar/bajas', [ColorBarDepletionController::class, 'store'])->middleware(['can:inventory.view', 'can:mode.color-bar.access'])->name('inventory.color-bar.depletions.store');
     Route::post('/inventario/color-bar/{balance}/baja', [InventoryController::class, 'depleteColorBar'])->middleware(['can:inventory.view', 'can:mode.color-bar.access'])->name('inventory.color-bar.deplete');

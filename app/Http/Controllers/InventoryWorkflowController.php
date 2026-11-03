@@ -8,9 +8,9 @@ use App\Models\InventoryRequest;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductVariant;
+use App\Services\InventoryFilter;
 use App\Services\InventoryLimitService;
 use App\Services\InventoryWorkflowService;
-use App\Services\ProductSearch;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -28,26 +28,21 @@ class InventoryWorkflowController extends Controller
     public function warehouse(Request $request): View
     {
         $this->ensureWarehouse($request);
-        $search = trim($request->string('search')->toString());
-        $brand = $request->string('brand')->toString();
-        $categoryId = $request->integer('category');
-        $lowStock = $request->boolean('low_stock');
+        $inventoryFilters = InventoryFilter::read($request);
+        $search = $inventoryFilters['search'];
+        $brand = $inventoryFilters['brand'];
+        $categoryId = $inventoryFilters['category'];
+        $lowStock = $inventoryFilters['low_stock'];
         $locations = InventoryLocation::query()->whereIn('code', ['ALM', 'REC', 'CB'])->get()->keyBy('code');
         $warehouseId = $locations->get('ALM')?->id;
-        $variants = ProductVariant::query()
+        $variants = InventoryFilter::apply(ProductVariant::query(), $inventoryFilters, $warehouseId)
             ->with(['product.preferredSupplier', 'balances' => fn ($query) => $query->whereIn('inventory_location_id', $locations->pluck('id'))])
-            ->whereHas('product', fn ($query) => $query->where('status', 'active')
-                ->when($brand !== '', fn ($query) => $query->where('brand', $brand))
-                ->when($categoryId, fn ($query) => $query->where('product_category_id', $categoryId)))
-            ->when($search, fn ($query) => ProductSearch::variants($query, $search))
-            ->when($lowStock, fn ($query) => $query->whereHas('balances', fn ($balances) => $balances->where('inventory_location_id', $warehouseId)
-                ->whereRaw('inventory_balances.available_quantity <= CASE WHEN inventory_balances.limits_configured = 1 THEN inventory_balances.minimum_stock ELSE product_variants.minimum_stock END')))
             ->orderBy(Product::query()->select('name')->whereColumn('products.id', 'product_variants.product_id'))
             ->orderBy('id')->paginate(30)->withQueryString();
         $brands = Product::query()->where('status', 'active')->whereNotNull('brand')->distinct()->orderBy('brand')->pluck('brand');
         $categories = ProductCategory::query()->orderBy('name')->get();
 
-        return view('inventory.matrix', compact('variants', 'locations', 'search', 'brand', 'brands', 'categoryId', 'categories', 'lowStock'));
+        return view('inventory.matrix', compact('variants', 'locations', 'search', 'brand', 'brands', 'categoryId', 'categories', 'lowStock', 'inventoryFilters'));
     }
 
     private function ensureWarehouse(Request $request): void
