@@ -26,7 +26,7 @@ class FilteredInventoryReplenishmentTest extends TestCase
 
     #[TestWith(['csv'])]
     #[TestWith(['xlsx'])]
-    public function test_export_matches_search_brand_category_and_minimum_on_all_pages_and_can_be_uploaded_unchanged(string $format): void
+    public function test_export_matches_search_brand_category_supplier_and_minimum_on_all_pages_and_can_be_uploaded_unchanged(string $format): void
     {
         $this->seed(CrepeSeeder::class);
         $admin = User::where('email', 'hi@davidsabido.com')->sole();
@@ -44,7 +44,9 @@ class FilteredInventoryReplenishmentTest extends TestCase
         $otherCategory->product->update(['product_category_id' => ProductCategory::where('name', 'Tinte SCH')->sole()->id]);
         $inactive = $this->variant('Repuesto inactivo', $supplier, 1, 2, 8);
         $inactive->product->update(['status' => 'inactive']);
-        $filters = ['search' => 'ordenada repuesto', 'brand' => 'Marca ordenada', 'category' => $category->id, 'low_stock' => 1];
+        $this->variant('Repuesto otro proveedor', Supplier::factory()->create(['name' => 'Otro proveedor']), 1, 2, 8);
+        $this->variant('Repuesto sin proveedor', null, 1, 2, 8);
+        $filters = ['search' => 'ordenada repuesto', 'brand' => 'Marca ordenada', 'category' => $category->id, 'supplier' => $supplier->id, 'low_stock' => 1];
         $before = InventoryBalance::orderBy('id')->get()->toArray();
         $movements = InventoryMovement::count();
 
@@ -58,8 +60,12 @@ class FilteredInventoryReplenishmentTest extends TestCase
             parse_str(parse_url($href, PHP_URL_QUERY), $query);
             $this->assertSame('Marca ordenada', $query['brand']);
             $this->assertSame('1', $query['low_stock']);
+            $this->assertSame((string) $supplier->id, $query['supplier']);
             $this->assertArrayNotHasKey('page', $query);
         }
+        $nextPage = $xpath->query('//a[@aria-label="Go to page 2"]')->item(0)->getAttribute('href');
+        parse_str(parse_url($nextPage, PHP_URL_QUERY), $nextQuery);
+        $this->assertSame((string) $supplier->id, $nextQuery['supplier']);
         $response = $this->get(route('inventory.export', $filters + ['format' => $format, 'location_code' => 'ALM', 'page' => 2]));
         $response->assertOk();
         $path = tempnam(sys_get_temp_dir(), 'filtered-inventory-');
@@ -77,6 +83,42 @@ class FilteredInventoryReplenishmentTest extends TestCase
         } finally {
             unlink($path);
         }
+        $this->assertSame($before, InventoryBalance::orderBy('id')->get()->toArray());
+        $this->assertDatabaseCount('inventory_movements', $movements);
+    }
+
+    public function test_supplier_filter_lists_all_its_stock_and_only_sends_its_low_stock_to_a_draft(): void
+    {
+        $this->seed(CrepeSeeder::class);
+        $admin = User::where('email', 'hi@davidsabido.com')->sole();
+        $supplier = Supplier::factory()->create(['name' => 'Proveedor elegido']);
+        $otherSupplier = Supplier::factory()->create(['name' => 'Proveedor distinto']);
+        $low = $this->variant('Repuesto por pedir', $supplier, 1, 2, 8);
+        $enough = $this->variant('Repuesto suficiente', $supplier, 9, 2, 8);
+        $this->variant('Repuesto otro proveedor', $otherSupplier, 1, 2, 8);
+        $this->variant('Repuesto sin proveedor', null, 1, 2, 8);
+        $before = InventoryBalance::orderBy('id')->get()->toArray();
+        $movements = InventoryMovement::count();
+        $filters = ['supplier' => $supplier->id];
+
+        $page = $this->actingAs($admin)->withSession(['crepe.mode' => 'almacen'])->get(route('inventory.index', $filters));
+
+        $page->assertViewHas('variants', fn ($variants) => $variants->total() === 2)
+            ->assertSee($low->product->name)->assertSee($enough->product->name)->assertSee('Filtrar por proveedor');
+        $dom = new \DOMDocument;
+        @$dom->loadHTML('<?xml encoding="utf-8" ?>'.$page->getContent());
+        $xpath = new \DOMXPath($dom);
+        $this->assertSame('Proveedor elegido', $xpath->query('//select[@name="supplier"]/option[@selected]')->item(0)->textContent);
+        $this->get(route('inventory.matrix', $filters))->assertRedirect(route('inventory.index', $filters + ['location' => 'ALM']));
+        $this->get(route('inventory.index', ['supplier' => 999999999]))->assertViewHas('variants', fn ($variants) => $variants->total() === 0);
+        $payload = $filters + ['key' => (string) str()->uuid(), 'low_stock' => 1];
+        $this->post(route('inventory.purchase-orders.store'), $payload)->assertSessionHas('inventory_replenishment.added', 1);
+        $this->post(route('inventory.purchase-orders.store'), $payload)->assertSessionHas('inventory_replenishment.added', 1);
+        $this->postJson(route('inventory.purchase-orders.store'), [...$payload, 'supplier' => $otherSupplier->id])->assertConflict();
+        $draft = PurchaseOrder::sole();
+        $this->assertSame($supplier->id, $draft->supplier_id);
+        $this->assertSame($low->id, $draft->items()->sole()->product_variant_id);
+        $this->assertSame('7.000', $draft->items()->sole()->ordered_quantity);
         $this->assertSame($before, InventoryBalance::orderBy('id')->get()->toArray());
         $this->assertDatabaseCount('inventory_movements', $movements);
     }
@@ -174,6 +216,9 @@ class FilteredInventoryReplenishmentTest extends TestCase
         $this->withSession(['crepe.mode' => 'color-bar'])->post($route, $payload)->assertForbidden();
         $this->withSession(['crepe.mode' => 'almacen'])->post($route, ['key' => (string) str()->uuid()])->assertSessionHasErrors('replenishment');
         $this->postJson($route, [...$payload, 'brand' => ['invalid']])->assertUnprocessable();
+        $this->postJson($route, [...$payload, 'supplier' => ['invalid']])->assertJsonValidationErrors('supplier');
+        $this->getJson(route('inventory.index', ['supplier' => -1]))->assertJsonValidationErrors('supplier');
+        $this->getJson(route('inventory.export', ['supplier' => 'invalid']))->assertJsonValidationErrors('supplier');
         $this->post($route, [...$payload, 'search' => 'no existe este producto'])->assertSessionHasErrors('replenishment');
         $warehouse = User::factory()->create();
         $warehouse->assignRole('Almacén');

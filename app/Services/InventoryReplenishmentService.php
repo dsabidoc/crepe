@@ -47,7 +47,7 @@ class InventoryReplenishmentService
     }
 
     /**
-     * @param  array{search: string, brand: string, category: int, low_stock: bool}  $filters
+     * @param  array{search: string, brand: string, category: int, supplier: int, low_stock: bool}  $filters
      * @return array{orders: list<array{id: int, code: string, supplier: string}>, added: int, existing: int, skipped: list<array{name: string, sku: ?string}>}
      */
     public function send(array $filters, User $actor, string $key): array

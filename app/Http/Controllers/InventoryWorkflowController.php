@@ -8,6 +8,7 @@ use App\Models\InventoryRequest;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductVariant;
+use App\Models\Supplier;
 use App\Services\InventoryFilter;
 use App\Services\InventoryLimitService;
 use App\Services\InventoryWorkflowService;
@@ -22,7 +23,7 @@ class InventoryWorkflowController extends Controller
     {
         $this->ensureWarehouse($request);
 
-        return redirect()->route('inventory.index', $request->only(['search', 'brand', 'category', 'low_stock', 'page']) + ['location' => 'ALM']);
+        return redirect()->route('inventory.index', $request->only(['search', 'brand', 'category', 'supplier', 'low_stock', 'page']) + ['location' => 'ALM']);
     }
 
     public function warehouse(Request $request): View
@@ -32,6 +33,7 @@ class InventoryWorkflowController extends Controller
         $search = $inventoryFilters['search'];
         $brand = $inventoryFilters['brand'];
         $categoryId = $inventoryFilters['category'];
+        $supplierId = $inventoryFilters['supplier'];
         $lowStock = $inventoryFilters['low_stock'];
         $locations = InventoryLocation::query()->whereIn('code', ['ALM', 'REC', 'CB'])->get()->keyBy('code');
         $warehouseId = $locations->get('ALM')?->id;
@@ -41,8 +43,9 @@ class InventoryWorkflowController extends Controller
             ->orderBy('id')->paginate(30)->withQueryString();
         $brands = Product::query()->where('status', 'active')->whereNotNull('brand')->distinct()->orderBy('brand')->pluck('brand');
         $categories = ProductCategory::query()->orderBy('name')->get();
+        $suppliers = Supplier::query()->orderBy('name')->get(['id', 'name']);
 
-        return view('inventory.matrix', compact('variants', 'locations', 'search', 'brand', 'brands', 'categoryId', 'categories', 'lowStock', 'inventoryFilters'));
+        return view('inventory.matrix', compact('variants', 'locations', 'search', 'brand', 'brands', 'categoryId', 'categories', 'supplierId', 'suppliers', 'lowStock', 'inventoryFilters'));
     }
 
     private function ensureWarehouse(Request $request): void
